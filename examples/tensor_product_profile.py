@@ -24,9 +24,9 @@ def t_or_f(arg):
 def main():
     parser = argparse.ArgumentParser(prog="tensor_product_benchmark")
     parser.add_argument("--jit", type=t_or_f, default=True)
-    parser.add_argument("--irreps-in1", type=str, default="8x0e + 8x1e + 8x2e + 8x3e")
-    parser.add_argument("--irreps-in2", type=str, default="8x0e + 8x1e + 8x2e + 8x3e")
-    parser.add_argument("--irreps-out", type=str, default="8x0e + 8x1e + 8x2e + 8x3e")
+    parser.add_argument("--irreps-in1", type=str, default="8x0ee + 8x1eo + 8x2oe + 8x3oo")
+    parser.add_argument("--irreps-in2", type=str, default="8x0ee + 8x1eo + 8x2oe + 8x3oo")
+    parser.add_argument("--irreps-out", type=str, default="8x0ee + 8x1eo + 8x2oe + 8x3oo")
     parser.add_argument("--cuda", type=t_or_f, default=True)
     parser.add_argument("--backward", type=t_or_f, default=True)
     parser.add_argument("--opt-ein", type=t_or_f, default=True)

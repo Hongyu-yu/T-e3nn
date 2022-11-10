@@ -290,6 +290,7 @@ class TensorProduct(CodeGenMixin, torch.nn.Module):
             mul_ir_in2 = self.irreps_in2[ins.i_in2]
             mul_ir_out = self.irreps_out[ins.i_out]
             assert mul_ir_in1.ir.p * mul_ir_in2.ir.p == mul_ir_out.ir.p
+            assert mul_ir_in1.ir.t * mul_ir_in2.ir.t == mul_ir_out.ir.t
             assert abs(mul_ir_in1.ir.l - mul_ir_in2.ir.l) <= mul_ir_out.ir.l <= mul_ir_in1.ir.l + mul_ir_in2.ir.l
             assert ins.connection_mode in ["uvw", "uvu", "uvv", "uuw", "uuu", "uvuv", "uvu<v", "u<vw"]
 

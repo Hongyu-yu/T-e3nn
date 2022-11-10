@@ -106,7 +106,9 @@ def random_irreps(
     for _ in range(n):
         this_irreps = []
         for _ in range(random.randint(len_min, len_max)):
-            this_irreps.append((random.randint(mul_min, mul_max), (random.randint(0, lmax), random.choice((1, -1)))))
+            this_irreps.append(
+                (random.randint(mul_min, mul_max), (random.randint(0, lmax), random.choice((1, -1)), random.choice((1, -1))))
+            )
         if not allow_empty and all(m == 0 for m, _ in this_irreps):
             this_irreps[-1] = (random.randint(1, mul_max), this_irreps[-1][1])
         this_irreps = o3.Irreps(this_irreps)
@@ -120,7 +122,7 @@ def random_irreps(
         elif outtype == "str":
             out.append(repr(this_irreps))
         elif outtype == "list":
-            out.append([(mul_ir.mul, (mul_ir.ir.l, mul_ir.ir.p)) for mul_ir in this_irreps])
+            out.append([(mul_ir.mul, (mul_ir.ir.l, mul_ir.ir.p, mul_ir.ir.t)) for mul_ir in this_irreps])
 
     if n == 1:
         return out[0]

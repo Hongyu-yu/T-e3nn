@@ -35,7 +35,7 @@ class SimpleNetwork(torch.nn.Module):
         self.num_nodes = num_nodes
         self.pool_nodes = pool_nodes
 
-        irreps_node_hidden = o3.Irreps([(mul, (l, p)) for l in range(lmax + 1) for p in [-1, 1]])
+        irreps_node_hidden = o3.Irreps([(mul, (l, p, t)) for l in range(lmax + 1) for p in [-1, 1] for t in [-1, 1]])
 
         self.mp = MessagePassing(
             irreps_node_input=irreps_in,
@@ -119,7 +119,7 @@ class NetworkForAGraphWithAttributes(torch.nn.Module):
         self.irreps_edge_attr = o3.Irreps(irreps_edge_attr)
         self.pool_nodes = pool_nodes
 
-        irreps_node_hidden = o3.Irreps([(mul, (l, p)) for l in range(lmax + 1) for p in [-1, 1]])
+        irreps_node_hidden = o3.Irreps([(mul, (l, p, t)) for l in range(lmax + 1) for p in [-1, 1] for t in [-1, 1]])
 
         self.mp = MessagePassing(
             irreps_node_input=irreps_node_input,

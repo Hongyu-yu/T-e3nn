@@ -79,6 +79,7 @@ def test_reduce_tensor_elasticity_tensor_parity(float_tolerance):
     tp = o3.ReducedTensorProducts("ijkl=jikl=klij", i="1o")
     assert tp.irreps_out.dim == 21
     assert all(ir.p == 1 for _, ir in tp.irreps_out)
+    assert all(ir.t == 1 for _, ir in tp.irreps_out)
 
     assert_equivariant(tp, irreps_in=tp.irreps_in, irreps_out=tp.irreps_out)
     assert_auto_jitable(tp)

@@ -9,7 +9,13 @@ from e3nn.util.test import assert_equivariant, assert_auto_jitable, assert_norma
 
 @pytest.mark.parametrize(
     "irreps_in,acts",
-    [("256x0o", [torch.abs]), ("37x0e", [torch.tanh]), ("4x0e + 3x0o", [torch.nn.functional.silu, torch.abs])],
+    [
+        ("256x0oe", [torch.abs]),
+        ("128x0eo", [torch.abs]),
+        ("128x0oo", [torch.tanh]),
+        ("37x0ee", [torch.tanh]),
+        ("4x0ee + 3x0oe", [torch.nn.functional.silu, torch.abs]),
+    ],
 )
 def test_activation(irreps_in, acts):
     irreps_in = o3.Irreps(irreps_in)

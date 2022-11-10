@@ -116,6 +116,7 @@ def codegen_tensor_product_left_right(
         mul_ir_out = irreps_out[ins.i_out]
 
         assert mul_ir_in1.ir.p * mul_ir_in2.ir.p == mul_ir_out.ir.p
+        assert mul_ir_in1.ir.t * mul_ir_in2.ir.t == mul_ir_out.ir.t
         assert abs(mul_ir_in1.ir.l - mul_ir_in2.ir.l) <= mul_ir_out.ir.l <= mul_ir_in1.ir.l + mul_ir_in2.ir.l
 
         if mul_ir_in1.dim == 0 or mul_ir_in2.dim == 0 or mul_ir_out.dim == 0:
@@ -488,6 +489,7 @@ def codegen_tensor_product_right(
         mul_ir_out = irreps_out[ins.i_out]
 
         assert mul_ir_in1.ir.p * mul_ir_in2.ir.p == mul_ir_out.ir.p
+        assert mul_ir_in1.ir.t * mul_ir_in2.ir.t == mul_ir_out.ir.t
         assert abs(mul_ir_in1.ir.l - mul_ir_in2.ir.l) <= mul_ir_out.ir.l <= mul_ir_in1.ir.l + mul_ir_in2.ir.l
 
         if mul_ir_in1.dim == 0 or mul_ir_in2.dim == 0 or mul_ir_out.dim == 0:

@@ -44,33 +44,57 @@ class S2Activation(torch.nn.Module):
         super().__init__()
 
         irreps = o3.Irreps(irreps).simplify()
-        _, (_, p_val) = irreps[0]
-        _, (lmax, _) = irreps[-1]
+        _, (_, p_val, t_val) = irreps[0]
+        _, (lmax, _, _) = irreps[-1]
         assert all(mul == 1 for mul, _ in irreps)
         assert irreps.ls == list(range(lmax + 1))
-        if all(p == p_val for _, (l, p) in irreps):
+        if all(p == p_val for _, (l, p, t) in irreps):
             p_arg = 1
-        elif all(p == p_val * (-1) ** l for _, (l, p) in irreps):
+        elif all(p == p_val * (-1) ** l for _, (l, p, t) in irreps):
             p_arg = -1
         else:
             assert False, "the parity of the input is not well defined"
+
+        if all(t == t_val for _, (l, p, t) in irreps):
+            t_arg = 1
+        elif all(t == t_val * (-1) ** l for _, (l, p, t) in irreps):
+            t_arg = -1
+        else:
+            assert False, "the time reversal of the input is not well defined"
         self.irreps_in = irreps
         # the input transforms as : A_l ---> p_val * (p_arg)^l * A_l
         # the sphere signal transforms as : f(r) ---> p_val * f(p_arg * r)
         if lmax_out is None:
             lmax_out = lmax
 
-        if p_val in (0, +1):
-            self.irreps_out = o3.Irreps([(1, (l, p_val * p_arg**l)) for l in range(lmax_out + 1)])
-        if p_val == -1:
+        if p_val in (0, +1) and t_val in (0, +1):
+            self.irreps_out = o3.Irreps([(1, (l, p_val * p_arg**l, t_val * t_arg**l)) for l in range(lmax_out + 1)])
+        else:
+            # if p_val == -1:
             x = torch.linspace(0, 10, 256)
             a1, a2 = act(x), act(-x)
             if (a1 - a2).abs().max() < a1.abs().max() * 1e-10:
                 # p_act = 1
-                self.irreps_out = o3.Irreps([(1, (l, p_arg**l)) for l in range(lmax_out + 1)])
+                if p_val == -1:
+                    p_act = 1
+                else:
+                    p_act = p_val
+                if t_val == -1:
+                    t_act = 1
+                else:
+                    t_act = t_val
+                self.irreps_out = o3.Irreps([(1, (l, p_act * p_arg**l, t_act * t_arg**l)) for l in range(lmax_out + 1)])
             elif (a1 + a2).abs().max() < a1.abs().max() * 1e-10:
                 # p_act = -1
-                self.irreps_out = o3.Irreps([(1, (l, -(p_arg**l))) for l in range(lmax_out + 1)])
+                if p_val == -1:
+                    p_act = -1
+                else:
+                    p_act = p_val
+                if t_val == -1:
+                    t_act = -1
+                else:
+                    t_act = t_val
+                self.irreps_out = o3.Irreps([(1, (l, p_act * p_arg**l, t_act * t_arg**l)) for l in range(lmax_out + 1)])
             else:
                 # p_act = 0
                 raise ValueError("warning! the parity is violated")

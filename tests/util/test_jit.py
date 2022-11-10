@@ -107,8 +107,8 @@ def test_compilation():
 
 def test_equivariant():
     # Confirm that a compiled tensorproduct is still equivariant
-    irreps_in = Irreps("1e + 2e + 3x3o")
-    irreps_out = Irreps("1e + 2e + 3x3o")
+    irreps_in = Irreps("1e + 2eo + 3x3o")
+    irreps_out = Irreps("1e + 2eo + 3x3o")
     mod = Linear(irreps_in, irreps_out)
     mod_script = compile(mod)
     assert_equivariant(

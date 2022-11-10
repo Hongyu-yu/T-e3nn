@@ -8,7 +8,7 @@ from e3nn.o3 import TensorProduct, FullyConnectedTensorProduct, Irreps
 from e3nn.util.test import assert_equivariant, assert_auto_jitable, assert_normalized
 
 
-def make_tp(l1, p1, l2, p2, lo, po, mode, weight, mul: int = 25, path_weights: bool = True, **kwargs):
+def make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, mul: int = 25, path_weights: bool = True, **kwargs):
     def mul_out(mul):
         if mode == "uvuv":
             return mul**2
@@ -18,9 +18,9 @@ def make_tp(l1, p1, l2, p2, lo, po, mode, weight, mul: int = 25, path_weights: b
 
     try:
         return TensorProduct(
-            [(mul, (l1, p1)), (19, (l1, p1))],
-            [(mul, (l2, p2)), (19, (l2, p2))],
-            [(mul_out(mul), (lo, po)), (mul_out(19), (lo, po))],
+            [(mul, (l1, p1, t1)), (19, (l1, p1, t1))],
+            [(mul, (l2, p2, t2)), (19, (l2, p2, t2))],
+            [(mul_out(mul), (lo, po, t0)), (mul_out(19), (lo, po, t0))],
             [
                 (0, 0, 0, mode, weight),
                 (1, 1, 1, mode, weight),
@@ -40,24 +40,27 @@ def random_params(n=25):
     while len(params) < n:
         l1 = random.randint(0, 2)
         p1 = random.choice([-1, 1])
+        t1 = random.choice([-1, 1])
         l2 = random.randint(0, 2)
         p2 = random.choice([-1, 1])
+        t2 = random.choice([-1, 1])
         lo = random.randint(0, 2)
         po = random.choice([-1, 1])
+        t0 = random.choice([-1, 1])
         mode = random.choice(["uvw", "uvu", "uvv", "uuw", "uuu", "uvuv"])
         weight = random.choice([True, False])
-        if make_tp(l1, p1, l2, p2, lo, po, mode, weight) is not None:
-            params.add((l1, p1, l2, p2, lo, po, mode, weight))
+        if make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight) is not None:
+            params.add((l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight))
     return params
 
 
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params())
-def test_bilinear_right_variance_equivariance(float_tolerance, l1, p1, l2, p2, lo, po, mode, weight):
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params())
+def test_bilinear_right_variance_equivariance(float_tolerance, l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
     eps = float_tolerance
     n = 1_500
     tol = 3.0
 
-    m = make_tp(l1, p1, l2, p2, lo, po, mode, weight)
+    m = make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight)
 
     # bilinear
     x1 = torch.randn(2, m.irreps_in1.dim)
@@ -96,13 +99,15 @@ def test_bilinear_right_variance_equivariance(float_tolerance, l1, p1, l2, p2, l
 
 # This is a fairly expensive test, so we don't run too many configs
 @pytest.mark.parametrize("path_normalization", ["element", "path"])
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params(n=8))
-def test_normalized(l1, p1, l2, p2, lo, po, mode, weight, path_normalization):
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=8))
+def test_normalized(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, path_normalization):
     if torch.get_default_dtype() != torch.float32:
         pytest.skip("No reason to run expensive normalization tests again at float64 expense.")
     # Explicit fixed path weights screw with the output normalization,
     # so don't use them
-    m = make_tp(l1, p1, l2, p2, lo, po, mode, weight, mul=5, path_weights=False, path_normalization=path_normalization)
+    m = make_tp(
+        l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, mul=5, path_weights=False, path_normalization=path_normalization
+    )
     # normalization
     # n_weight, n_input has to be decently high to ensure statistical convergence
     # especially for uvuv
@@ -227,15 +232,17 @@ def test_empty_inputs():
     assert out.shape == (1, 2, 0, 3, 4, 4)
 
 
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params(n=2))
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=2))
 @pytest.mark.parametrize("special_code", [True, False])
 @pytest.mark.parametrize("opt_ein", [True, False])
-def test_jit(l1, p1, l2, p2, lo, po, mode, weight, special_code, opt_ein):
+def test_jit(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, special_code, opt_ein):
     """Test the JIT.
 
     This test is seperate from test_optimizations to ensure that just jitting a model has minimal error if any.
     """
-    orig_tp = make_tp(l1, p1, l2, p2, lo, po, mode, weight, _specialized_code=special_code, _optimize_einsums=opt_ein)
+    orig_tp = make_tp(
+        l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, _specialized_code=special_code, _optimize_einsums=opt_ein
+    )
     opt_tp = assert_auto_jitable(orig_tp)
 
     # Confirm equivariance of optimized model
@@ -255,13 +262,15 @@ def test_jit(l1, p1, l2, p2, lo, po, mode, weight, special_code, opt_ein):
     )
 
 
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params(n=4))
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=4))
 @pytest.mark.parametrize("special_code", [True, False])
 @pytest.mark.parametrize("opt_ein", [True, False])
 @pytest.mark.parametrize("jit", [True, False])
-def test_optimizations(l1, p1, l2, p2, lo, po, mode, weight, special_code, opt_ein, jit, float_tolerance):
-    orig_tp = make_tp(l1, p1, l2, p2, lo, po, mode, weight, _specialized_code=False, _optimize_einsums=False)
-    opt_tp = make_tp(l1, p1, l2, p2, lo, po, mode, weight, _specialized_code=special_code, _optimize_einsums=opt_ein)
+def test_optimizations(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, special_code, opt_ein, jit, float_tolerance):
+    orig_tp = make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, _specialized_code=False, _optimize_einsums=False)
+    opt_tp = make_tp(
+        l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, _specialized_code=special_code, _optimize_einsums=opt_ein
+    )
     # We don't use state_dict here since that contains things like wigners that
     # can differ between optimized and unoptimized TPs
     with torch.no_grad():
@@ -413,9 +422,9 @@ def test_weight_views():
     assert torch.all(m(x1, x2, weights) == 0.0)
 
 
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params(n=1))
-def test_deepcopy(l1, p1, l2, p2, lo, po, mode, weight):
-    tp = make_tp(l1, p1, l2, p2, lo, po, mode, weight)
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=1))
+def test_deepcopy(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
+    tp = make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight)
     x1 = torch.randn(2, tp.irreps_in1.dim)
     x2 = torch.randn(2, tp.irreps_in2.dim)
     res1 = tp(x1, x2)
@@ -424,9 +433,9 @@ def test_deepcopy(l1, p1, l2, p2, lo, po, mode, weight):
     assert torch.allclose(res1, res2)
 
 
-@pytest.mark.parametrize("l1, p1, l2, p2, lo, po, mode, weight", random_params(n=1))
-def test_save(l1, p1, l2, p2, lo, po, mode, weight):
-    tp = make_tp(l1, p1, l2, p2, lo, po, mode, weight)
+@pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=1))
+def test_save(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
+    tp = make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight)
     # Saved TP
     with tempfile.NamedTemporaryFile(suffix=".pth") as tmp:
         torch.save(tp, tmp.name)

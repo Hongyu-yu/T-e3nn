@@ -12,7 +12,7 @@ from . import _wigner
 
 
 class Irrep(tuple):
-    r"""Irreducible representation of :math:`O(3)`
+    r"""Irreducible representation of :math:`O(3)` -> 'U(2)'
 
     This class does not contain any data, it is a structure that describe the representation.
     It is typically used as argument of other classes of the library to define the input and output representations of
@@ -23,37 +23,35 @@ class Irrep(tuple):
     l : int
         non-negative integer, the degree of the representation, :math:`l = 0, 1, \dots`
 
-    p : {1, -1}
+    p : {1, -1} -> {e, o}
         the parity of the representation
+
+    t : {1, -1} -> {e, o}
+        the time reversal of the representation
 
     Examples
     --------
-    Create a scalar representation (:math:`l=0`) of even parity.
+    Create a scalar representation (:math:`l=0`) of even parity and even T.
 
-    >>> Irrep(0, 1)
-    0e
+    >>> Irrep(0, 1, 1)
+    0ee
 
-    Create a pseudotensor representation (:math:`l=2`) of odd parity.
+    Create a pseudotensor representation (:math:`l=2`) of odd parity and even T.
 
-    >>> Irrep(2, -1)
-    2o
-
-    Create a vector representation (:math:`l=1`) of the parity of the spherical harmonics (:math:`-1^l` gives odd parity).
-
-    >>> Irrep("1y")
-    1o
+    >>> Irrep(2, -1, 1)
+    2oe
 
     >>> Irrep("2o").dim
     5
 
-    >>> Irrep("2e") in Irrep("1o") * Irrep("1o")
+    >>> Irrep("2ee") in Irrep("1oe") * Irrep("1oe")
     True
 
-    >>> Irrep("1o") + Irrep("2o")
-    1x1o+1x2o
+    >>> Irrep("1oe") + Irrep("2oe")
+    1x1oe+1x2oe
     """
 
-    def __new__(cls, l: Union[int, "Irrep", str, tuple], p=None):
+    def __new__(cls, l: Union[float, "Irrep", str, tuple], p=None, t=1):
         if p is None:
             if isinstance(l, Irrep):
                 return l
@@ -61,23 +59,34 @@ class Irrep(tuple):
             if isinstance(l, str):
                 try:
                     name = l.strip()
-                    l = int(name[:-1])
+                    ind_dict: dict = {"e": 1, "o": -1, "y": (-1) ** l}
+                    if name[-2] not in ind_dict.keys():
+                        l = int(name[:-1])
+                        p = ind_dict[name[-1]]
+                        t = 1  # Default t is 1
+                    else:
+                        l = int(name[:-2])
+                        p = ind_dict[name[-2]]
+                        t = ind_dict[name[-1]]
                     assert l >= 0
-                    p = {
-                        "e": 1,
-                        "o": -1,
-                        "y": (-1) ** l,
-                    }[name[-1]]
                 except Exception:
                     raise ValueError(f'unable to convert string "{name}" into an Irrep')
             elif isinstance(l, tuple):
-                l, p = l
+                if len(l) == 2:
+                    l, p = l
+                    t = 1
+                elif len(l) == 3:
+                    l, p, t = l
+                else:
+                    raise ValueError(f'unable to convert tuple "{l}" into an Irrep. It should consist of 3 or 2 integers')
 
         if not isinstance(l, int) or l < 0:
             raise ValueError(f"l must be positive integer, got {l}")
         if p not in (-1, 1):
             raise ValueError(f"parity must be on of (-1, 1), got {p}")
-        return super().__new__(cls, (l, p))
+        if t not in (-1, 1):
+            raise ValueError(f"time reversal must be on of (-1, 1), got {t}")
+        return super().__new__(cls, (l, p, t))
 
     @property
     def l(self) -> int:  # noqa: E743
@@ -89,9 +98,15 @@ class Irrep(tuple):
         r"""The parity of the representation, :math:`p = \pm 1`."""
         return self[1]
 
+    @property
+    def t(self) -> int:
+        r"""The time reversal of the representation, :math:`p = \pm 1`."""
+        return self[2]
+
     def __repr__(self):
         p = {+1: "e", -1: "o"}[self.p]
-        return f"{self.l}{p}"
+        t = {+1: "e", -1: "o"}[self.t]
+        return f"{self.l}{p}{t}"
 
     @classmethod
     def iterator(cls, lmax=None):
@@ -104,13 +119,15 @@ class Irrep(tuple):
         (0e, 0o, 1o, 1e)
         """
         for l in itertools.count():
-            yield Irrep(l, (-1) ** l)
-            yield Irrep(l, -((-1) ** l))
+            yield Irrep(l, (-1) ** l, (-1) ** l)
+            yield Irrep(l, (-1) ** l, -((-1) ** l))
+            yield Irrep(l, -((-1) ** l), (-1) ** l)
+            yield Irrep(l, -((-1) ** l), -((-1) ** l))
 
             if l == lmax:
                 break
 
-    def D_from_angles(self, alpha, beta, gamma, k=None):
+    def D_from_angles(self, alpha, beta, gamma, k=None, kt=None):
         r"""Matrix :math:`p^k D^l(\alpha, \beta, \gamma)`
 
         (matrix) Representation of :math:`O(3)`. :math:`D` is the representation of :math:`SO(3)`, see `wigner_D`.
@@ -133,6 +150,10 @@ class Irrep(tuple):
             tensor of shape :math:`(...)`
             How many times the parity is applied.
 
+        kt : `torch.Tensor`, optional
+            tensor of shape :math:`(...)`
+            How many times the time reversal operation is applied.
+
         Returns
         -------
         `torch.Tensor`
@@ -145,11 +166,13 @@ class Irrep(tuple):
         """
         if k is None:
             k = torch.zeros_like(alpha)
+        if kt is None:
+            kt = torch.zeros_like(alpha)
 
-        alpha, beta, gamma, k = torch.broadcast_tensors(alpha, beta, gamma, k)
-        return _wigner.wigner_D(self.l, alpha, beta, gamma) * self.p ** k[..., None, None]
+        alpha, beta, gamma, k, kt = torch.broadcast_tensors(alpha, beta, gamma, k, kt)
+        return _wigner.wigner_D(self.l, alpha, beta, gamma) * self.p ** k[..., None, None] * self.t ** kt[..., None, None]
 
-    def D_from_quaternion(self, q, k=None):
+    def D_from_quaternion(self, q, k=None, kt=None):
         r"""Matrix of the representation, see `Irrep.D_from_angles`
 
         Parameters
@@ -160,12 +183,15 @@ class Irrep(tuple):
         k : `torch.Tensor`, optional
             tensor of shape :math:`(...)`
 
+        kt : `torch.Tensor`, optional
+            tensor of shape :math:`(...)`
+
         Returns
         -------
         `torch.Tensor`
             tensor of shape :math:`(..., 2l+1, 2l+1)`
         """
-        return self.D_from_angles(*_rotation.quaternion_to_angles(q), k)
+        return self.D_from_angles(*_rotation.quaternion_to_angles(q), k, kt)
 
     def D_from_matrix(self, R):
         r"""Matrix of the representation, see `Irrep.D_from_angles`
@@ -194,7 +220,7 @@ class Irrep(tuple):
         d = torch.det(R).sign()
         R = d[..., None, None] * R
         k = (1 - d) / 2
-        return self.D_from_angles(*_rotation.matrix_to_angles(R), k)
+        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)
 
     def D_from_axis_angle(self, axis, angle):
         r"""Matrix of the representation, see `Irrep.D_from_angles`
@@ -220,8 +246,8 @@ class Irrep(tuple):
         return 2 * self.l + 1
 
     def is_scalar(self) -> bool:
-        """Equivalent to ``l == 0 and p == 1``"""
-        return self.l == 0 and self.p == 1
+        """Equivalent to ``l == 0 and p == 1 and t==1``"""
+        return self.l == 0 and self.p == 1 and self.t == 1
 
     def __mul__(self, other):
         r"""Generate the irreps from the product of two irreps.
@@ -232,10 +258,11 @@ class Irrep(tuple):
         """
         other = Irrep(other)
         p = self.p * other.p
+        t = self.t * other.t
         lmin = abs(self.l - other.l)
         lmax = self.l + other.l
         for l in range(lmin, lmax + 1):
-            yield Irrep(l, p)
+            yield Irrep(l, p, t)
 
     def count(self, _value):
         raise NotImplementedError
@@ -246,7 +273,7 @@ class Irrep(tuple):
     def __rmul__(self, other):
         r"""
         >>> 3 * Irrep('1e')
-        3x1e
+        3x1ee
         """
         assert isinstance(other, int)
         return Irreps([(other, self)])
@@ -320,25 +347,25 @@ class Irreps(tuple):
     --------
     Create a representation of 100 :math:`l=0` of even parity and 50 pseudo-vectors.
 
-    >>> x = Irreps([(100, (0, 1)), (50, (1, 1))])
+    >>> x = Irreps([(100, (0, 1, 1)), (50, (1, 1, 1))])
     >>> x
-    100x0e+50x1e
+    100x0ee+50x1ee
 
     >>> x.dim
     250
 
     Create a representation of 100 :math:`l=0` of even parity and 50 pseudo-vectors.
 
-    >>> Irreps("100x0e + 50x1e")
-    100x0e+50x1e
+    >>> Irreps("100x0ee + 50x1ee")
+    100x0ee+50x1ee
 
-    >>> Irreps("100x0e + 50x1e + 0x2e")
-    100x0e+50x1e+0x2e
+    >>> Irreps("100x0ee + 50x1ee + 0x2ee")
+    100x0ee+50x1ee+0x2ee
 
     >>> Irreps("100x0e + 50x1e + 0x2e").lmax
     1
 
-    >>> Irrep("2e") in Irreps("0e + 2e")
+    >>> Irrep("2ee") in Irreps("0ee + 2ee")
     True
 
     Empty Irreps
@@ -396,7 +423,7 @@ class Irreps(tuple):
         return super().__new__(cls, out)
 
     @staticmethod
-    def spherical_harmonics(lmax, p=-1):
+    def spherical_harmonics(lmax, p=-1, t=1):
         r"""representation of the spherical harmonics
 
         Parameters
@@ -407,6 +434,9 @@ class Irreps(tuple):
         p : {1, -1}
             the parity of the representation
 
+        t : {1, -1}
+            the time reversal of the representation
+
         Returns
         -------
         `e3nn.o3.Irreps`
@@ -415,13 +445,23 @@ class Irreps(tuple):
         Examples
         --------
 
+        1) For rij (Default)
         >>> Irreps.spherical_harmonics(3)
-        1x0e+1x1o+1x2e+1x3o
+        1x0ee+1x1oe+1x2ee+1x3oe
 
-        >>> Irreps.spherical_harmonics(4, p=1)
-        1x0e+1x1e+1x2e+1x3e+1x4e
+        2) For si
+        >>> Irreps.spherical_harmonics(3, p=1, t=-1)
+        1x0ee+1x1eo+1x2ee+1x3eo
+
+        3) For si X sj, si*sj
+        >>> Irreps.spherical_harmonics(4, p=1, t=1)
+        1x0ee+1x1ee+1x2ee+1x3ee+1x4ee
+
+        4) For rij X si
+        >>> Irreps.spherical_harmonics(4, p=-1, t=-1)
+        1x0ee+1x1oo+1x2ee+1x3oo
         """
-        return Irreps([(1, (l, p**l)) for l in range(lmax + 1)])
+        return Irreps([(1, (l, p**l, t**l)) for l in range(lmax + 1)])
 
     def slices(self):
         r"""List of slices corresponding to indices for each irrep.
@@ -457,10 +497,10 @@ class Irreps(tuple):
         Examples
         --------
 
-        >>> Irreps("5x0e + 10x1o").randn(5, -1, 5, normalization='norm').shape
+        >>> Irreps("5x0ee + 10x1oe").randn(5, -1, 5, normalization='norm').shape
         torch.Size([5, 35, 5])
 
-        >>> random_tensor = Irreps("2o").randn(2, -1, 3, normalization='norm')
+        >>> random_tensor = Irreps("2oe").randn(2, -1, 3, normalization='norm')
         >>> random_tensor.norm(dim=1).sub(1).abs().max().item() < 1e-5
         True
         """
@@ -529,7 +569,7 @@ class Irreps(tuple):
         """
         return Irreps(super().__rmul__(other))
 
-    def simplify(self) -> 'Irreps':
+    def simplify(self) -> "Irreps":
         """Simplify the representations.
 
         Returns
@@ -541,13 +581,13 @@ class Irreps(tuple):
 
         Note that simplify does not sort the representations.
 
-        >>> Irreps("1e + 1e + 0e").simplify()
-        2x1e+1x0e
+        >>> Irreps("1ee + 1ee + 0ee").simplify()
+        2x1ee+1x0ee
 
         Equivalent representations which are separated from each other are not combined.
 
-        >>> Irreps("1e + 1e + 0e + 1e").simplify()
-        2x1e+1x0e+1x1e
+        >>> Irreps("1ee + 1ee + 0ee + 1ee").simplify()
+        2x1ee+1x0ee+1x1ee
         """
         out = []
         for mul, ir in self:
@@ -567,8 +607,8 @@ class Irreps(tuple):
         Examples
         --------
 
-        >>> Irreps("4x0e + 0x1o + 2x3e").remove_zero_multiplicities()
-        4x0e+2x3e
+        >>> Irreps("4x0ee + 0x1oe + 2x3ee").remove_zero_multiplicities()
+        4x0ee+2x3ee
 
         """
         out = [(mul, ir) for mul, ir in self if mul > 0]
@@ -580,16 +620,16 @@ class Irreps(tuple):
         Returns
         -------
         irreps : `e3nn.o3.Irreps`
-        p : tuple of int
-        inv : tuple of int
+        p : tuple of int; index og -> sort
+        inv : tuple of int; index sort -> og
 
         Examples
         --------
 
-        >>> Irreps("1e + 0e + 1e").sort().irreps
-        1x0e+1x1e+1x1e
+        >>> Irreps("1ee + 0ee + 1ee").sort().irreps
+        1x0ee+1x1ee+1x1ee
 
-        >>> Irreps("2o + 1e + 0e + 1e").sort().p
+        >>> Irreps("2oe + 1ee + 0ee + 1ee").sort().p
         (3, 1, 0, 2)
 
         >>> Irreps("2o + 1e + 0e + 1e").sort().inv
@@ -613,7 +653,8 @@ class Irreps(tuple):
 
     @property
     def ls(self) -> List[int]:
-        return [l for mul, (l, p) in self for _ in range(mul)]
+        # Return the l list
+        return [l for mul, (l, p, t) in self for _ in range(mul)]
 
     @property
     def lmax(self) -> int:
@@ -624,7 +665,7 @@ class Irreps(tuple):
     def __repr__(self):
         return "+".join(f"{mul_ir}" for mul_ir in self)
 
-    def D_from_angles(self, alpha, beta, gamma, k=None):
+    def D_from_angles(self, alpha, beta, gamma, k=None, kt=None):
         r"""Matrix of the representation
 
         Parameters
@@ -641,14 +682,18 @@ class Irreps(tuple):
         k : `torch.Tensor`, optional
             tensor of shape :math:`(...)`
 
+        kt : `torch.Tensor`, optional
+            tensor of shape :math:`(...)`
+            How many times the time reversal operation is applied.
+
         Returns
         -------
         `torch.Tensor`
             tensor of shape :math:`(..., \mathrm{dim}, \mathrm{dim})`
         """
-        return direct_sum(*[ir.D_from_angles(alpha, beta, gamma, k) for mul, ir in self for _ in range(mul)])
+        return direct_sum(*[ir.D_from_angles(alpha, beta, gamma, k, kt) for mul, ir in self for _ in range(mul)])
 
-    def D_from_quaternion(self, q, k=None):
+    def D_from_quaternion(self, q, k=None, kt=None):
         r"""Matrix of the representation
 
         Parameters
@@ -659,12 +704,16 @@ class Irreps(tuple):
         k : `torch.Tensor`, optional
             tensor of shape :math:`(...)`
 
+        kt : `torch.Tensor`, optional
+            tensor of shape :math:`(...)`
+            How many times the time reversal operation is applied.
+
         Returns
         -------
         `torch.Tensor`
             tensor of shape :math:`(..., \mathrm{dim}, \mathrm{dim})`
         """
-        return self.D_from_angles(*_rotation.quaternion_to_angles(q), k)
+        return self.D_from_angles(*_rotation.quaternion_to_angles(q), k, kt)
 
     def D_from_matrix(self, R):
         r"""Matrix of the representation
@@ -682,7 +731,7 @@ class Irreps(tuple):
         d = torch.det(R).sign()
         R = d[..., None, None] * R
         k = (1 - d) / 2
-        return self.D_from_angles(*_rotation.matrix_to_angles(R), k)
+        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)  # about t?
 
     def D_from_axis_angle(self, axis, angle):
         r"""Matrix of the representation

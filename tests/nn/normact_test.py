@@ -10,7 +10,7 @@ from e3nn.util.test import assert_equivariant, assert_auto_jitable
 @pytest.mark.parametrize("do_bias", [True, False])
 @pytest.mark.parametrize("nonlin", [torch.tanh, torch.sigmoid])
 def test_norm_activation(float_tolerance, do_bias, nonlin):
-    irreps_in = e3nn.o3.Irreps("4x0e + 5x1o")
+    irreps_in = e3nn.o3.Irreps("4x0e + 5x1oo")
     N_batch = 3
     in_features = torch.randn(N_batch, irreps_in.dim)
     # Set some features to zero to test avoiding divide by zero
@@ -73,7 +73,7 @@ def test_norm_activation(float_tolerance, do_bias, nonlin):
 def test_norm_activation_equivariant(do_bias, nonlin):
     irreps_in = e3nn.o3.Irreps(
         # test lots of different irreps
-        "2x0e + 3x0o + 5x1o + 1x1e + 2x2e + 1x2o + 1x3e + 1x3o + 1x5e + 1x6o"
+        "2x0ee + 3x0oe + 5x1oe + 1x1ee + 2x2ee + 1x2oe + 1x3ee + 1x3oe + 1x5ee + 1x6oe + 2x0eo + 3x0oo + 5x1oo + 1x1eo + 2x2eo + 1x2oo + 1x3eo + 1x3oo + 1x5eo + 1x6oo"
     )
 
     norm_act = NormActivation(irreps_in=irreps_in, scalar_nonlinearity=nonlin, bias=do_bias)
@@ -92,7 +92,7 @@ def test_norm_activation_equivariant(do_bias, nonlin):
 @pytest.mark.parametrize("nonlin", [torch.tanh, torch.sigmoid])
 def test_zeros(do_bias, nonlin):
     """Confirm that `epsilon` gives non-NaN grads"""
-    irreps_in = e3nn.o3.Irreps("2x0e + 3x0o")
+    irreps_in = e3nn.o3.Irreps("2x0ee + 3x0oe + 2x0eo + 3x0oo")
     norm_act = NormActivation(
         irreps_in=irreps_in,
         scalar_nonlinearity=nonlin,

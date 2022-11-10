@@ -55,7 +55,7 @@ class Dropout(torch.nn.Module):
         batch = x.shape[0]
 
         noises = []
-        for mul, (l, _p) in self.irreps:
+        for mul, (l, _p, _t) in self.irreps:
             dim = 2 * l + 1
             noise = x.new_empty(batch, mul)
 

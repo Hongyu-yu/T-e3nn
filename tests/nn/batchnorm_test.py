@@ -6,7 +6,7 @@ import pytest
 
 
 def test_equivariant():
-    irreps = o3.Irreps("3x0e + 3x0o + 4x1e")
+    irreps = o3.Irreps("3x0ee + 3x0oe + 4x1ee + 3x0eo + 3x0oo + 4x1eo")
     m = BatchNorm(irreps)
     m(irreps.randn(16, -1))
     m(irreps.randn(16, -1))
@@ -21,7 +21,7 @@ def test_equivariant():
 @pytest.mark.parametrize("normalization", ["norm", "component"])
 @pytest.mark.parametrize("instance", [True, False])
 def test_modes(affine, reduce, normalization, instance):
-    irreps = o3.Irreps("10x0e + 5x1e")
+    irreps = o3.Irreps("10x0ee + 5x1ee")
 
     m = BatchNorm(irreps, affine=affine, reduce=reduce, normalization=normalization, instance=instance)
     repr(m)
@@ -38,7 +38,7 @@ def test_normalization(float_tolerance, instance):
     sqrt_float_tolerance = torch.sqrt(float_tolerance)
 
     batch, n = 20, 20
-    irreps = o3.Irreps("3x0e + 4x1e")
+    irreps = o3.Irreps("3x0ee + 4x1ee")
 
     m = BatchNorm(irreps, normalization="norm", instance=instance)
 

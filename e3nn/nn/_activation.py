@@ -35,7 +35,7 @@ class Activation(torch.nn.Module):
         super().__init__()
         irreps_in = o3.Irreps(irreps_in)
         if len(irreps_in) != len(acts):
-            raise ValueError(f'Irreps in and number of activation functions does not match: {len(acts), (irreps_in, acts)}')
+            raise ValueError(f"Irreps in and number of activation functions does not match: {len(acts), (irreps_in, acts)}")
 
         # normalize the second moment
         acts = [normalize2mom(act) if act is not None else None for act in acts]
@@ -43,7 +43,7 @@ class Activation(torch.nn.Module):
         from e3nn.util._argtools import _get_device
 
         irreps_out = []
-        for (mul, (l_in, p_in)), act in zip(irreps_in, acts):
+        for (mul, (l_in, p_in, t_in)), act in zip(irreps_in, acts):
             if act is not None:
                 if l_in != 0:
                     raise ValueError("Activation: cannot apply an activation function to a non-scalar input.")
@@ -59,7 +59,8 @@ class Activation(torch.nn.Module):
                     p_act = 0
 
                 p_out = p_act if p_in == -1 else p_in
-                irreps_out.append((mul, (0, p_out)))
+                t_out = p_act if t_in == -1 else t_in
+                irreps_out.append((mul, (0, p_out, t_out)))
 
                 if p_out == 0:
                     raise ValueError(
@@ -67,7 +68,7 @@ class Activation(torch.nn.Module):
                         "even nor odd."
                     )
             else:
-                irreps_out.append((mul, (l_in, p_in)))
+                irreps_out.append((mul, (l_in, p_in, t_in)))
 
         self.irreps_in = irreps_in
         self.irreps_out = o3.Irreps(irreps_out)

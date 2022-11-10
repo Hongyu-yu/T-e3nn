@@ -59,6 +59,17 @@ def test_linear():
     assert_normalized(m, n_weight=100, n_input=10_000, atol=0.5)
 
 
+def test_time_reversal_linear():
+    irreps_in = o3.Irreps("1eo + 2ee + 3x3oe")
+    irreps_out = o3.Irreps("1eo + 2ee + 3x3oe")
+    m = o3.Linear(irreps_in, irreps_out)
+    m(torch.randn(irreps_in.dim))
+
+    assert_equivariant(m)
+    assert_auto_jitable(m)
+    assert_normalized(m, n_weight=100, n_input=10_000, atol=0.5)
+
+
 def test_bias():
     irreps_in = o3.Irreps("2x0e + 1e + 2x0e + 0o")
     irreps_out = o3.Irreps("3x0e + 1e + 3x0e + 5x0e + 0o")
@@ -72,7 +83,7 @@ def test_bias():
     assert_equivariant(m)
     assert_auto_jitable(m)
 
-    m = o3.Linear("0e + 0o + 1e + 1o", "10x0e + 0o + 1e + 1o", biases=True)
+    m = o3.Linear("0eo + 0oe + 1ee + 1oo", "10x0eo + 0oe + 1ee + 1oo", biases=True)
 
     assert_equivariant(m)
     assert_auto_jitable(m)
@@ -94,8 +105,8 @@ def test_single_out():
 
 
 # We want to be sure to test a multiple-same L case, a single irrep case, and an empty irrep case
-@pytest.mark.parametrize("irreps_in", ["5x0e", "1e + 2e + 4x1e + 3x3o", "2x1o + 0x3e"] + random_irreps(n=4))
-@pytest.mark.parametrize("irreps_out", ["5x0e", "1e + 2e + 3x3o + 3x1e", "2x1o + 0x3e"] + random_irreps(n=4))
+@pytest.mark.parametrize("irreps_in", ["5x0e", "1eo + 2e + 4x1e + 3x3o", "2x1o + 0x3e"] + random_irreps(n=4))
+@pytest.mark.parametrize("irreps_out", ["5x0e", "1eo + 2e + 3x3o + 3x1e", "2x1o + 0x3e"] + random_irreps(n=4))
 def test_linear_like_tp(irreps_in, irreps_out):
     """Test that Linear gives the same results as the corresponding TensorProduct."""
     m = o3.Linear(irreps_in, irreps_out)

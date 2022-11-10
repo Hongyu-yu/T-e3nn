@@ -20,7 +20,7 @@ def test_equivariance(act, lmax):
 
 @pytest.mark.parametrize("aspect_ratio", [1, 2, 3, 4])
 def test_identity(aspect_ratio):
-    irreps = o3.Irreps([(2 * l + 1, (l, 1)) for l in range(5 + 1)])
+    irreps = o3.Irreps([(2 * l + 1, (l, 1, 1)) for l in range(5 + 1)])
 
     m = SO3Activation(5, 5, lambda x: x, 6, aspect_ratio=aspect_ratio)
     m = compile(m)

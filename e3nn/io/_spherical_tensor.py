@@ -51,15 +51,21 @@ class SphericalTensor(o3.Irreps):
     p_arg : {+1, -1}
         :math:`p_a`
 
+    t_val : {+1, -1}
+        :math:`t_v`
+
+    t_arg : {+1, -1}
+        :math:`t_a`
+
 
     Examples
     --------
 
-    >>> SphericalTensor(3, 1, 1)
-    1x0e+1x1e+1x2e+1x3e
+    >>> SphericalTensor(3, 1, 1, 1, 1)
+    1x0ee+1x1ee+1x2ee+1x3ee
 
-    >>> SphericalTensor(3, 1, -1)
-    1x0e+1x1o+1x2e+1x3o
+    >>> SphericalTensor(3, 1, -1, 1 ,1)
+    1x0ee+1x1oe+1x2ee+1x3oe
     """
     # pylint: disable=abstract-method
 
@@ -69,8 +75,10 @@ class SphericalTensor(o3.Irreps):
         lmax,
         p_val,
         p_arg,
+        t_val,
+        t_arg,
     ):
-        return super().__new__(cls, [(1, (l, p_val * p_arg**l)) for l in range(lmax + 1)])
+        return super().__new__(cls, [(1, (l, p_val * p_arg**l, t_val * t_arg**l)) for l in range(lmax + 1)])
 
     def with_peaks_at(self, vectors, values=None):
         r"""Create a spherical tensor with peaks

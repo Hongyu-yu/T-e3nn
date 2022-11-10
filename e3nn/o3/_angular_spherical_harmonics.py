@@ -26,7 +26,7 @@ class SphericalHarmonicsAlphaBeta(torch.nn.Module):
         super().__init__()
 
         if isinstance(l, o3.Irreps):
-            ls = [l for mul, (l, p) in l for _ in range(mul)]
+            ls = [l for mul, (l, p, t) in l for _ in range(mul)]
         elif isinstance(l, int):
             ls = [l]
         else:

@@ -9,7 +9,6 @@ def test_creation():
     ir = o3.Irrep("3e")
     o3.Irrep(ir)
     assert o3.Irrep("10o") == o3.Irrep(10, -1)
-    assert o3.Irrep("1y") == o3.Irrep("1o")
 
     irreps = o3.Irreps(ir)
     o3.Irreps(irreps)
@@ -21,9 +20,30 @@ def test_creation():
     o3.Irreps([(16, "3e"), "1e", (256, (1, -1))])
 
     assert irrep.l0e == o3.Irrep("0e")
-    from e3nn.o3.irrep import l1y
+    from e3nn.o3.irrep import l1o
 
-    assert l1y == o3.Irrep("1y")
+    assert l1o == o3.Irrep("1o")
+
+
+def test_time_reversal_creation():
+    o3.Irrep(3, 1, -1)
+    ir = o3.Irrep("3eo")
+    o3.Irrep(ir)
+    assert o3.Irrep("10oo") == o3.Irrep(10, -1, -1)
+
+    irreps = o3.Irreps(ir)
+    o3.Irreps(irreps)
+    o3.Irreps([(32, (4, -1, -1))])
+    o3.Irreps("11eo")
+    assert o3.Irreps("16x1eo + 32 x 2oo") == o3.Irreps([(16, (1, 1, -1)), (32, (2, -1, -1))])
+    o3.Irreps(["1eo", "2oo"])
+    o3.Irreps([(16, "3eo"), "1eo"])
+    o3.Irreps([(16, "3eo"), "1eo", (256, (1, -1, -1))])
+
+    assert irrep.l0eo == o3.Irrep("0eo")
+    from e3nn.o3.irrep import l1oo
+
+    assert l1oo == o3.Irrep("1oo")
 
 
 def test_properties():
@@ -34,21 +54,41 @@ def test_properties():
 
     assert o3.Irrep(repr(irrep)) == irrep
 
-    l, p = o3.Irrep("5o")
+    l, p, t = o3.Irrep("5o")
     assert l == 5
     assert p == -1
+    assert t == 1
 
     iterator = o3.Irrep.iterator(5)
-    assert len(list(iterator)) == 12
+    assert len(list(iterator)) == 24
 
     iterator = o3.Irrep.iterator()
     for x in range(100):
         irrep = next(iterator)
-        assert irrep.l == x // 2
+        assert irrep.l == x // 4
         assert irrep.p in (-1, 1)
-        assert irrep.dim == 2 * (x // 2) + 1
+        assert irrep.t in (-1, 1)
+        assert irrep.dim == 2 * (x // 4) + 1
 
     irreps = o3.Irreps("4x1e + 6x2e + 12x2o")
+    assert o3.Irreps(repr(irreps)) == irreps
+
+
+def test_time_reversal_properties():
+    irrep = o3.Irrep("3eo")
+    assert irrep.l == 3
+    assert irrep.p == 1
+    assert irrep.t == -1
+    assert irrep.dim == 7
+
+    assert o3.Irrep(repr(irrep)) == irrep
+
+    l, p, t = o3.Irrep("5oo")
+    assert l == 5
+    assert p == -1
+    assert t == -1
+
+    irreps = o3.Irreps("4x1eo + 6x2eo + 12x2oe")
     assert o3.Irreps(repr(irreps)) == irreps
 
 
@@ -63,6 +103,19 @@ def test_arithmetic():
     assert o3.Irreps("2x2e + 4x1o") * 2 == o3.Irreps("2x2e + 4x1o + 2x2e + 4x1o")
 
     assert o3.Irreps("1o + 4o") + o3.Irreps("1o + 7e") == o3.Irreps("1o + 4o + 1o + 7e")
+
+
+def test_time_reversal_arithmetic():
+    assert 3 * o3.Irrep("6oo") == o3.Irreps("3x6oo")
+    products = list(o3.Irrep("1oe") * o3.Irrep("2eo"))
+    assert products == [o3.Irrep("1oo"), o3.Irrep("2oo"), o3.Irrep("3oo")]
+
+    assert o3.Irrep("4oo") + o3.Irrep("7ee") == o3.Irreps("4oo + 7ee")
+
+    assert 2 * o3.Irreps("2x2eo + 4x1oe") == o3.Irreps("2x2eo + 4x1oe + 2x2eo + 4x1oe")
+    assert o3.Irreps("2x2ee + 4x1oo") * 2 == o3.Irreps("2x2ee + 4x1oo + 2x2ee + 4x1oo")
+
+    assert o3.Irreps("1oe + 4oe") + o3.Irreps("1oo + 7eo") == o3.Irreps("1oe + 4oe + 1oo + 7eo")
 
 
 def test_empty_irreps():

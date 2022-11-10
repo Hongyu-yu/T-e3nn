@@ -23,7 +23,7 @@ class Identity(torch.nn.Module):
 
         assert self.irreps_in == self.irreps_out
 
-        output_mask = torch.cat([torch.ones(mul * (2 * l + 1)) for mul, (l, _p) in self.irreps_out])
+        output_mask = torch.cat([torch.ones(mul * (2 * l + 1)) for mul, (l, _p, _t) in self.irreps_out])
         self.register_buffer("output_mask", output_mask)
 
     def __repr__(self):
