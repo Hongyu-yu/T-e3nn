@@ -59,13 +59,14 @@ class Irrep(tuple):
             if isinstance(l, str):
                 try:
                     name = l.strip()
-                    ind_dict: dict = {"e": 1, "o": -1, "y": (-1) ** l}
-                    if name[-2] not in ind_dict.keys():
+                    if name[-2] not in ["e", "o", "y"]:
                         l = int(name[:-1])
+                        ind_dict: dict = {"e": 1, "o": -1, "y": (-1) ** l}
                         p = ind_dict[name[-1]]
                         t = 1  # Default t is 1
                     else:
                         l = int(name[:-2])
+                        ind_dict: dict = {"e": 1, "o": -1, "y": (-1) ** l}
                         p = ind_dict[name[-2]]
                         t = ind_dict[name[-1]]
                     assert l >= 0
@@ -461,7 +462,7 @@ class Irreps(tuple):
         >>> Irreps.spherical_harmonics(4, p=-1, t=-1)
         1x0ee+1x1oo+1x2ee+1x3oo
         """
-        return Irreps([(1, (l, p**l, t**l)) for l in range(lmax + 1)])
+        return Irreps([(1, (l, p ** l, t ** l)) for l in range(lmax + 1)])
 
     def slices(self):
         r"""List of slices corresponding to indices for each irrep.
@@ -731,7 +732,7 @@ class Irreps(tuple):
         d = torch.det(R).sign()
         R = d[..., None, None] * R
         k = (1 - d) / 2
-        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)  # about t?
+        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)
 
     def D_from_axis_angle(self, axis, angle):
         r"""Matrix of the representation
