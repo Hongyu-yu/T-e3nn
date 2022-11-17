@@ -8,11 +8,22 @@ import torch
 from e3nn.o3 import Irreps
 
 
-def _transform(dat, irreps_dat, rot_mat, translation=0.0, output_transform_dtype: bool = False):
+SPECIAL_VALS = [
+    "cartesian_points",
+    "spin",
+]
+
+
+def _transform(
+    dat, irreps_dat, rot_mat, translation=0.0, output_transform_dtype: bool = False, parity_k=1, tr_k=0, only_rot_spin=False
+):
     """Transform ``dat`` by ``rot_mat`` and ``translation`` according to ``irreps_dat``."""
+    """only_rot_spin used test for not considering soc"""
     out = []
     transform_dtype = rot_mat.dtype
     translation = torch.as_tensor(translation, dtype=transform_dtype)
+    assert parity_k in (0, 1) and tr_k in (0, 1)
+    rot_mat_reversal = rot_mat * (-1) ** (parity_k or tr_k)
     for irreps, a in zip(irreps_dat, dat):
         if output_transform_dtype:
             out_dtype = transform_dtype
@@ -22,16 +33,28 @@ def _transform(dat, irreps_dat, rot_mat, translation=0.0, output_transform_dtype
             out.append(a.clone())
         elif irreps == "cartesian_points":
             translation = torch.as_tensor(translation, device=a.device)
-            out.append(((a.to(transform_dtype) @ rot_mat.T.to(a.device)) + translation).to(out_dtype))
+            if only_rot_spin:
+                out.append((a.to(transform_dtype) + translation).to(out_dtype))
+            else:
+                out.append(((a.to(transform_dtype) @ (rot_mat * (-1) ** parity_k).T.to(a.device)) + translation).to(out_dtype))
+        elif irreps == "spin":
+            out.append((a.to(transform_dtype) @ (rot_mat * (-1) ** tr_k).T.to(a.device)).to(out_dtype))
         else:
             # For o3.Irreps
-            out.append((a.to(transform_dtype) @ irreps.D_from_matrix(rot_mat).T.to(a.device)).to(out_dtype))
+            if only_rot_spin:
+                out.append(a.clone())
+            else:
+                out.append(
+                    (a.to(transform_dtype) @ irreps.D_from_matrix(rot_mat_reversal, parity_k, tr_k).T.to(a.device)).to(
+                        out_dtype
+                    )
+                )
     return out
 
 
 def _get_io_irreps(func, irreps_in=None, irreps_out=None):
     """Preprocess or, if not given, try to infer the I/O irreps for ``func``."""
-    SPECIAL_VALS = ["cartesian_points", None]
+    SPECIAL_VALS_NONE = SPECIAL_VALS + [None]
 
     if (irreps_in is None or irreps_out is None) and isinstance(func, torch.jit.ScriptModule):
         warnings.warn(
@@ -52,10 +75,10 @@ def _get_io_irreps(func, irreps_in=None, irreps_out=None):
         else:
             raise ValueError("Cannot infer irreps_out for %r; provide them explicitly" % func)
 
-    if isinstance(irreps_in, Irreps) or irreps_in in SPECIAL_VALS:
+    if isinstance(irreps_in, Irreps) or irreps_in in SPECIAL_VALS_NONE:
         irreps_in = [irreps_in]
     elif isinstance(irreps_in, list):
-        irreps_in = [i if i in SPECIAL_VALS else Irreps(i) for i in irreps_in]
+        irreps_in = [i if i in SPECIAL_VALS_NONE else Irreps(i) for i in irreps_in]
     else:
         if isinstance(irreps_in, tuple) and not isinstance(irreps_in, Irreps):
             warnings.warn(
@@ -65,10 +88,10 @@ def _get_io_irreps(func, irreps_in=None, irreps_out=None):
             )
         irreps_in = [Irreps(irreps_in)]
 
-    if isinstance(irreps_out, Irreps) or irreps_out in SPECIAL_VALS:
+    if isinstance(irreps_out, Irreps) or irreps_out in SPECIAL_VALS_NONE:
         irreps_out = [irreps_out]
     elif isinstance(irreps_out, list):
-        irreps_out = [i if i in SPECIAL_VALS else Irreps(i) for i in irreps_out]
+        irreps_out = [i if i in SPECIAL_VALS_NONE else Irreps(i) for i in irreps_out]
     else:
         if isinstance(irreps_in, tuple) and not isinstance(irreps_in, Irreps):
             warnings.warn(
@@ -90,16 +113,16 @@ def _get_args_in(func, args_in=None, irreps_in=None, irreps_out=None):
 
 
 def _rand_args(irreps_in, batch_size: Optional[int] = None):
-    if not all((isinstance(i, Irreps) or i == "cartesian_points") for i in irreps_in):
+    if not all((isinstance(i, Irreps) or i in SPECIAL_VALS) for i in irreps_in):
         raise ValueError(
-            "Random arguments cannot be generated when argument types besides Irreps and `'cartesian_points'` are specified; "
+            "Random arguments cannot be generated when argument types besides Irreps and `'cartesian_points'` SPECIAL_VALS are specified; "
             "provide explicit ``args_in``"
         )
     if batch_size is None:
         # Generate random args with random size batch dim between 1 and 4:
         batch_size = random.randint(1, 4)
     args_in = [
-        torch.randn(batch_size, 3) if (irreps == "cartesian_points") else irreps.randn(batch_size, -1) for irreps in irreps_in
+        torch.randn(batch_size, 3) if (irreps in SPECIAL_VALS) else irreps.randn(batch_size, -1) for irreps in irreps_in
     ]
     return args_in
 

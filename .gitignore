@@ -18,3 +18,4 @@ examples/s2cnn/mnist/MNIST_data/MNIST/raw
 examples/s2cnn/mnist/s2_mnist.gz
 
 .idea
+.history

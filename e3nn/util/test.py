@@ -207,7 +207,9 @@ def equivariance_error(
     irreps_out=None,
     ntrials=1,
     do_parity=True,
+    do_time_reversal=True,
     do_translation=True,
+    do_only_rot_spin=False,
     transform_dtype=torch.float64,
 ):
     r"""Get the maximum equivariance error for ``func`` over ``ntrials``
@@ -231,8 +233,12 @@ def equivariance_error(
         run this many trials with random transforms
     do_parity : bool
         whether to test parity
+    do_time_reversal : bool
+        whether to test parity
     do_translation : bool
         whether to test translation for ``'cartesian'`` inputs
+    only_rot_spin : bool:
+        whether to test only rot spin while keep other the same. Used in tests for not considering SOC
 
     Returns
     -------
@@ -246,6 +252,16 @@ def equivariance_error(
     else:
         parity_ks = [0]
 
+    if do_time_reversal:
+        tr_ks = [0, 1]
+    else:
+        tr_ks = [0]
+
+    if do_only_rot_spin:
+        only_rot_spin_ks = [True, False]
+    else:
+        only_rot_spin_ks = [False]
+
     if "cartesian_points" not in irreps_in:
         # There's nothing to translate
         do_translation = False
@@ -254,7 +270,7 @@ def equivariance_error(
     else:
         do_translation = [False]
 
-    tests = list(itertools.product(parity_ks, do_translation))
+    tests = list(itertools.product(parity_ks, do_translation, tr_ks, only_rot_spin_ks))
 
     neg_inf = -float("Inf")
     device = next(t.device for t in args_in if isinstance(t, torch.Tensor))
@@ -262,16 +278,18 @@ def equivariance_error(
 
     for trial in range(ntrials):
         for this_test in tests:
-            parity_k, this_do_translate = this_test
+            parity_k, this_do_translate, tr_k, only_rot_spin_k = this_test
             # Build a rotation matrix for point data
             rot_mat = o3.rand_matrix(dtype=transform_dtype)
-            # add parity
-            rot_mat *= (-1) ** parity_k
+            # add time reversal
+            # add parity in sider _transform
             # build translation
             translation = 10 * torch.randn(1, 3, dtype=rot_mat.dtype) if this_do_translate else 0.0
 
             # Evaluate the function on rotated arguments:
-            rot_args = _transform(args_in, irreps_in, rot_mat, translation)
+            rot_args = _transform(
+                args_in, irreps_in, rot_mat, translation, parity_k=parity_k, tr_k=tr_k, only_rot_spin=only_rot_spin_k
+            )
             x1 = func(*rot_args)
             if isinstance(x1, torch.Tensor):
                 x1 = [x1]
@@ -299,7 +317,16 @@ def equivariance_error(
 
             # apply the group action to x2
             # get this in the transform dtype
-            x2 = _transform(x2, irreps_out, rot_mat, translation, output_transform_dtype=True)
+            x2 = _transform(
+                x2,
+                irreps_out,
+                rot_mat,
+                translation,
+                output_transform_dtype=True,
+                parity_k=parity_k,
+                tr_k=tr_k,
+                only_rot_spin=only_rot_spin_k,
+            )
 
             # compute errors in the transform dtype,
             # then convert back to default later
@@ -475,7 +502,7 @@ def assert_normalized(
 
     # check them
     for expected_square, irreps in zip(expected_squares, irreps_out):
-        if irreps == "cartesian_points" or irreps is None:
+        if irreps == "cartesian_points" or irreps is None or irreps == "spin":
             continue
         if normalization == "component":
             targets = [1.0] * len(irreps)

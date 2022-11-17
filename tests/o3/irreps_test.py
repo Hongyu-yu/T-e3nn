@@ -50,6 +50,7 @@ def test_properties():
     irrep = o3.Irrep("3e")
     assert irrep.l == 3
     assert irrep.p == 1
+    assert irrep.t == 1
     assert irrep.dim == 7
 
     assert o3.Irrep(repr(irrep)) == irrep

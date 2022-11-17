@@ -194,16 +194,21 @@ class Irrep(tuple):
         """
         return self.D_from_angles(*_rotation.quaternion_to_angles(q), k, kt)
 
-    def D_from_matrix(self, R):
+    def D_from_matrix(self, R, parity=True, time_reversal=False):
         r"""Matrix of the representation, see `Irrep.D_from_angles`
+
+        Determination of the Matrix: (k in the func) 1: do reverse; 0: remain the same
 
         Parameters
         ----------
         R : `torch.Tensor`
             tensor of shape :math:`(..., 3, 3)`
 
-        k : `torch.Tensor`, optional
-            tensor of shape :math:`(...)`
+        parity: `bool`
+            matrix consider parity
+
+        time_reversal: `bool`
+            matrix consider time_reversal
 
         Returns
         -------
@@ -221,7 +226,9 @@ class Irrep(tuple):
         d = torch.det(R).sign()
         R = d[..., None, None] * R
         k = (1 - d) / 2
-        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)
+        kp = k if parity else torch.as_tensor(0).type_as(k)
+        kt = k if time_reversal else torch.as_tensor(0).type_as(k)
+        return self.D_from_angles(*_rotation.matrix_to_angles(R), kp, kt)
 
     def D_from_axis_angle(self, axis, angle):
         r"""Matrix of the representation, see `Irrep.D_from_angles`
@@ -716,13 +723,23 @@ class Irreps(tuple):
         """
         return self.D_from_angles(*_rotation.quaternion_to_angles(q), k, kt)
 
-    def D_from_matrix(self, R):
-        r"""Matrix of the representation
+    def D_from_matrix(self, R, parity=True, time_reversal=False):
+        r"""Matrix of the representation.
+
+        Determination of the Matrix: (k in the func) 1: do reverse; 0: remain the same
+
+        parity and time_reversal to control which reverse is about
 
         Parameters
         ----------
         R : `torch.Tensor`
             tensor of shape :math:`(..., 3, 3)`
+
+        parity: `bool`
+            matrix consider parity
+
+        time_reversal: `bool`
+            matrix consider time_reversal
 
         Returns
         -------
@@ -732,7 +749,9 @@ class Irreps(tuple):
         d = torch.det(R).sign()
         R = d[..., None, None] * R
         k = (1 - d) / 2
-        return self.D_from_angles(*_rotation.matrix_to_angles(R), k, k)
+        kp = k if parity else torch.as_tensor(0).type_as(k)
+        kt = k if time_reversal else torch.as_tensor(0).type_as(k)
+        return self.D_from_angles(*_rotation.matrix_to_angles(R), kp, kt)
 
     def D_from_axis_angle(self, axis, angle):
         r"""Matrix of the representation

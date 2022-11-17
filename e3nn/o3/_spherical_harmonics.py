@@ -32,8 +32,8 @@ class SphericalHarmonics(torch.nn.Module):
         normalize: bool,
         normalization: str = "integral",
         irreps_in: Any = None,
-        lparity: bool = True,
-        ltime_reversal: bool = False,
+        parity: bool = True,
+        time_reversal: bool = False,
     ):
         super().__init__()
         self.normalize = normalize
@@ -47,7 +47,7 @@ class SphericalHarmonics(torch.nn.Module):
                 if l % 2 == 1 and p == 1 and t == 1:
                     irreps_in = o3.Irreps("1ee")
         if irreps_in is None:
-            irreps_in = o3.Irrep(1, 1 - lparity * 2, 1 - ltime_reversal * 2)
+            irreps_in = o3.Irrep(1, 1 - parity * 2, 1 - time_reversal * 2)
 
         irreps_in = o3.Irreps(irreps_in)
 
@@ -63,13 +63,13 @@ class SphericalHarmonics(torch.nn.Module):
         if isinstance(irreps_out, o3.Irreps):
             ls = []
             for mul, (l, p, t) in irreps_out:
-                if t != input_t**l:
+                if t != input_t ** l:
                     raise ValueError(
                         f"irreps_out `{irreps_out}` passed to SphericalHarmonics asked for an output of l = {l} with t parity "
                         f"t = {t}, which is inconsistent with the input t parity {input_t} — the output parity should have been "
                         f"t = {input_t**l}"
                     )
-                if p != input_p**l:
+                if p != input_p ** l:
                     raise ValueError(
                         f"irreps_out `{irreps_out}` passed to SphericalHarmonics asked for an output of l = {l} with parity "
                         f"p = {p}, which is inconsistent with the input parity {input_p} — the output parity should have been "
@@ -82,7 +82,7 @@ class SphericalHarmonics(torch.nn.Module):
         else:
             ls = list(irreps_out)
 
-        irreps_out = o3.Irreps([(1, (l, input_p**l, input_t**l)) for l in ls]).simplify()
+        irreps_out = o3.Irreps([(1, (l, input_p ** l, input_t ** l)) for l in ls]).simplify()
 
         self.irreps_out = irreps_out
         self._ls_list = ls
@@ -123,8 +123,8 @@ def spherical_harmonics(
     x: torch.Tensor,
     normalize: bool,
     normalization: str = "integral",
-    lparity: bool = True,
-    ltime_reversal: bool = False,
+    parity: bool = True,
+    time_reversal: bool = False,
 ):
     r"""Spherical harmonics
 
@@ -177,10 +177,10 @@ def spherical_harmonics(
         * *norm*: :math:`\|Y^l(x)\| = 1, x \in S^2`, ``component / sqrt(2l+1)``
         * *integral*: :math:`\int_{S^2} Y^l_m(x)^2 dx = 1`, ``component / sqrt(4pi)``
 
-    lparity: bool
+    parity: bool
         whether to consider parity symmetry for input
 
-    ltime_reversal: bool
+    time_reversal: bool
         whether to consider time reversal symmetry for input
 
     Returns
@@ -203,7 +203,7 @@ def spherical_harmonics(
     wigner_3j
 
     """
-    sh = SphericalHarmonics(l, normalize, normalization, lparity=lparity, ltime_reversal=ltime_reversal)
+    sh = SphericalHarmonics(l, normalize, normalization, parity=parity, time_reversal=time_reversal)
     return sh(x)
 
 
@@ -1977,7 +1977,7 @@ def _generate_spherical_harmonics(lmax, device=None):  # pragma: no cover
         from fractions import Fraction
 
         s = 1 if x >= 0 else -1
-        x = x**2
+        x = x ** 2
         x = Fraction(x).limit_denominator()
         x = s * sympy.sqrt(x)
         x = sympy.simplify(x)
@@ -2021,7 +2021,7 @@ def _generate_spherical_harmonics(lmax, device=None):  # pragma: no cover
         ]
 
         poly_evalz = [sub_z1(p, sh_variables, poly_evalz) for p in polynomials]
-        norm = sympy.sqrt(sum(p**2 for p in poly_evalz))
+        norm = sympy.sqrt(sum(p ** 2 for p in poly_evalz))
         polynomials = [sympy.sqrt(2 * l + 3) * p / norm for p in polynomials]
         poly_evalz = [sympy.sqrt(2 * l + 3) * p / norm for p in poly_evalz]
 
