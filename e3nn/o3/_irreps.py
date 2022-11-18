@@ -650,6 +650,42 @@ class Irreps(tuple):
         p = perm.inverse(inv)
         irreps = Irreps([(mul, ir) for ir, _, mul in out])
         return Ret(irreps, p, inv)
+    
+    def sort_array(self):
+        r"""Sort the representations and return also the array index.
+
+        Returns
+        -------
+        irreps : `e3nn.o3.Irreps`
+        p : tuple of int; index og -> sort
+        inv : tuple of int; index sort -> og
+        p_array : tuple of int; index for array og -> sort
+
+        Examples
+        --------
+
+        >>> Irreps("1ee + 0ee + 1ee").sort().irreps
+        1x0ee+1x1ee+1x1ee
+
+        >>> Irreps("2oe + 1ee + 0ee + 1ee").sort().p
+        (3, 1, 0, 2)
+
+        >>> Irreps("2o + 1e + 0e + 1e").sort().inv
+        (2, 1, 3, 0)
+        """
+        from itertools import chain
+        
+        Ret = collections.namedtuple("sort_array", ["irreps", "p", "inv", "p_array"])
+        irreps, p, inv = self.sort()
+        ind_num_og = [(ir.dim * mul) for mul, ir in self]
+        instructions = []
+        
+        ind = 0
+        for i in range(len(irreps)):
+            instructions += [list(range(ind, ind + ind_num_og[i]))]
+            ind = ind + ind_num_og[i]
+        p_array = list(chain(*list(instructions[i] for i in inv)))
+        return Ret(irreps, p, inv, p_array)
 
     @property
     def dim(self) -> int:
