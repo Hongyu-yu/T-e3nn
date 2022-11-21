@@ -207,7 +207,7 @@ def equivariance_error(
     irreps_out=None,
     ntrials=1,
     do_parity=True,
-    do_time_reversal=True,
+    do_time_reversal=False,
     do_translation=True,
     do_only_rot_spin=False,
     transform_dtype=torch.float64,

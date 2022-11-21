@@ -1,3 +1,88 @@
+# Time-reversal Euclidean neural networks
+
+[![DOI](https://zenodo.org/badge/doi/10.13140/RG.2.2.10001.10085.svg)](https://dx.doi.org/10.13140/RG.2.2.10001.10085)
+
+T-e3nn is a extentsion of [e3nn](https://github.com/e3nn/e3nn) with consideration of time-reversal symmetry include quantities such as spin and velocity. It's developed on this 
+The aim of this library is to help the development of [Time-reversal](https://en.wikipedia.org/wiki/T-symmetry) [E(3)](https://en.wikipedia.org/wiki/Euclidean_group) equivariant neural networks.
+
+It's built on [version of e3nn](https://github.com/e3nn/e3nn/commit/b521bfcfcf4225ed500c15ec3419a24656f763ca)
+ with nearlly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily with T-e3nn. See more details in this [preprint](https://www.researchgate.net/publication/365607322_Time-reversal_equivariant_neural_network_potential_and_Hamiltonian_for_magnetic_materials).
+
+## Installation
+```
+$ git clone 
+$ cd T-e3nn/
+$ pip install .
+```
+Warning: with T-e3nn installed, e3nn packages will be removed in your python environment. Codes about `import e3nn` will be directed to T-e3nn instead. Please check the small difference of API listed below. Generally, very few changes are needed to make to transfer from e3nn to T-e3nn.
+
+## Difference with E3NN
+
+With a few changes on your original codes based on e3nn, time-reversal can be considered.
+
+### **Irreps**:
+
+#### Initialization
+
+In T-e3nn, `Irreps` are stored with `(l, p, t)` with `t` about time-reversal symmetry and `l` `p` from e3nn. 
+
+You can initial `Irreps` by
+- `Irrep(l, p, t)` or `Irrep(l, p)` with default `t=1`.
+- `Irrep("lee")` or `Irrep("1e")` with default `t=-1`
+If you want to generate `Irrep` with odd time-reversal, you should include `t` when initializing `Irrep`.
+
+Example:
+- Irrep of spin vector should be `Irrep(1, 1, -1)` or `Irrep("1eo")`
+- Irrep of bond vector can be `Irrep(1, 1)` or `Irrep("1o")` as the same in e3nn or `Irrep(1, 1, 1)` or `Irrep("1oe")` with explicit time-reversal index.
+Iteration like `for mul, (l, p) in irreps` in e3nn should be modified as `for mul, (l, p, t) in irrep` 
+
+
+#### **Property**
+
+While `p` is about parity, `t` is about time-reversal. Here we use `T` as the time-reversal operation and `x` as the variable with `(l,p,t)`
+
+For `x` of `t=1`, `Tx=x`. For most of physical quantities, `t=1`
+
+For `x` of `t=-1`, `Tx=-x`. For the physical quantities related with time, such as velocity `v=dx/dt` and spin, `t=-1`.
+
+`t` will be considered in the operation just like `p`.
+
+When `t` of all variables is 1, it's degenerate into E(3) and act exactly the same as E3NN.
+
+#### Class method difference
+Difference are highlighted with **bold**.
+- D_from_angles(alpha, beta, gamma, k, **kt**=None)
+- D_from_quaternion(q, k, **kt**)
+- D_from_matrix(R, **parity**=True, **time_reversal**=False)
+- spherical_harmonics(lmax, p=-1, **t**=1)
+- **sort_array**
+  - Sort the representations and return also the array index based on sort
+
+### **Other API difference**
+- io.SphericalTensor(lmax, p_val, p_arg, **t_val**=1, **t_arg**=1)
+- o3.SphericalHarmonics(..., **parity**=True, **time_reversal**=False)
+- o3.spherical_harmonics(..., **parity**=True, **time_reversal**=False)
+- util.test.assert_equivariant(...,**do_time_reversal**=True, **do_only_rot_spin**=False)
+  - Whether to check time-reversal symmetry and whether spin-orbit effect existence.
+  - If you want to check that SOC is turn off in your model, **do_only_rot_spin** should be true.
+- util.test.equivariance_error(..., **do_time_reversal**=True, **do_only_rot_spin**=False)
+- util._argtools._transform(..., **parity**=1, **tr_k**=0, **only_rot_spin**=False)
+
+### Citing
+If you use this repository in your work, please considering citing the preprint below and e3nn.
+```
+@misc{tenn_paper,
+    author = {Hongyu Yu, Yang Zhong, Junyi Ji, Xingao Gong, Hongjun Xiang},
+    keywords = {Machine Learning (cs.LG), Artificial Intelligence (cs.AI), Neural and Evolutionary Computing (cs.NE), FOS: Computer and information sciences, FOS: Computer and information sciences}, 
+    title = {Time-reversal equivariant neural network potential and Hamiltonian for magnetic materials},
+    publisher = {arXiv},
+    year = {2022},
+    copyright = {Creative Commons Attribution 4.0 International}
+}
+```
+
+README.md of E3nn:
+
 # Euclidean neural networks
 [![Coverage Status](https://coveralls.io/repos/github/e3nn/e3nn/badge.svg?branch=main)](https://coveralls.io/github/e3nn/e3nn?branch=main)
 [![DOI](https://zenodo.org/badge/237431920.svg)](https://zenodo.org/badge/latestdoi/237431920)

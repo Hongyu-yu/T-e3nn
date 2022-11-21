@@ -75,8 +75,8 @@ class SphericalTensor(o3.Irreps):
         lmax,
         p_val,
         p_arg,
-        t_val,
-        t_arg,
+        t_val=1,
+        t_arg=1,
     ):
         return super().__new__(cls, [(1, (l, p_val * p_arg**l, t_val * t_arg**l)) for l in range(lmax + 1)])
 
