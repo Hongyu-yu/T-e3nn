@@ -469,7 +469,7 @@ class Irreps(tuple):
         >>> Irreps.spherical_harmonics(4, p=-1, t=-1)
         1x0ee+1x1oo+1x2ee+1x3oo
         """
-        return Irreps([(1, (l, p ** l, t ** l)) for l in range(lmax + 1)])
+        return Irreps([(1, (l, p**l, t**l)) for l in range(lmax + 1)])
 
     def slices(self):
         r"""List of slices corresponding to indices for each irrep.
@@ -650,7 +650,7 @@ class Irreps(tuple):
         p = perm.inverse(inv)
         irreps = Irreps([(mul, ir) for ir, _, mul in out])
         return Ret(irreps, p, inv)
-    
+
     def sort_array(self):
         r"""Sort the representations and return also the array index.
 
@@ -674,12 +674,12 @@ class Irreps(tuple):
         (2, 1, 3, 0)
         """
         from itertools import chain
-        
+
         Ret = collections.namedtuple("sort_array", ["irreps", "p", "inv", "p_array"])
         irreps, p, inv = self.sort()
         ind_num_og = [(ir.dim * mul) for mul, ir in self]
         instructions = []
-        
+
         ind = 0
         for i in range(len(irreps)):
             instructions += [list(range(ind, ind + ind_num_og[i]))]

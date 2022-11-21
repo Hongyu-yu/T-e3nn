@@ -115,7 +115,8 @@ def _get_args_in(func, args_in=None, irreps_in=None, irreps_out=None):
 def _rand_args(irreps_in, batch_size: Optional[int] = None):
     if not all((isinstance(i, Irreps) or i in SPECIAL_VALS) for i in irreps_in):
         raise ValueError(
-            "Random arguments cannot be generated when argument types besides Irreps and `'cartesian_points'` SPECIAL_VALS are specified; "
+            "Random arguments cannot be generated when argument types besides Irreps and"
+            " `cartesian_points` and `spin` are specified; "
             "provide explicit ``args_in``"
         )
     if batch_size is None:
