@@ -73,7 +73,8 @@ def test_norm_activation(float_tolerance, do_bias, nonlin):
 def test_norm_activation_equivariant(do_bias, nonlin):
     irreps_in = e3nn.o3.Irreps(
         # test lots of different irreps
-        "2x0ee + 3x0oe + 5x1oe + 1x1ee + 2x2ee + 1x2oe + 1x3ee + 1x3oe + 1x5ee + 1x6oe + 2x0eo + 3x0oo + 5x1oo + 1x1eo + 2x2eo + 1x2oo + 1x3eo + 1x3oo + 1x5eo + 1x6oo"
+        "2x0ee + 3x0oe + 5x1oe + 1x1ee + 2x2ee + 1x2oe + 1x3ee + 1x3oe + 1x5ee + 1x6oe + 2x0eo"
+        "+ 3x0oo + 5x1oo + 1x1eo + 2x2eo + 1x2oo + 1x3eo + 1x3oo + 1x5eo + 1x6oo"
     )
 
     norm_act = NormActivation(irreps_in=irreps_in, scalar_nonlinearity=nonlin, bias=do_bias)
