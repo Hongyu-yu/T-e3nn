@@ -1,6 +1,6 @@
 # Time-reversal Euclidean neural networks
 
-[![DOI](https://zenodo.org/badge/doi/10.13140/RG.2.2.10001.10085.svg)](https://dx.doi.org/10.13140/RG.2.2.10001.10085)
+[![DOI](https://zenodo.org/badge/doi/10.48550/arXiv.2211.11403.svg)](https://doi.org/10.48550/arXiv.2211.11403)
 
 T-e3nn is an extension of [e3nn](https://github.com/e3nn/e3nn) with consideration of time-reversal symmetry include quantities such as spin and velocity. It's developed on this.
 
@@ -74,8 +74,8 @@ Difference are highlighted with **bold**.
 If you use this repository in your work, please considering citing the preprint below and e3nn.
 ```
 @misc{tenn_paper,
-    doi = {10.48550/ARXIV.2211.*****},
-    url = {https://arxiv.org/abs/2211.*****},
+    doi = {10.48550/ARXIV.2211.11403},
+    url = {https://arxiv.org/abs/2211.11403},
     author = {Hongyu Yu, Yang Zhong, Junyi Ji, Xingao Gong, Hongjun Xiang},
     keywords = {Machine Learning (cs.LG), Artificial Intelligence (cs.AI), Neural and Evolutionary Computing (cs.NE), FOS: Computer and information sciences, FOS: Computer and information sciences}, 
     title = {Time-reversal equivariant neural network potential and Hamiltonian for magnetic materials},
