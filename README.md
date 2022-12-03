@@ -6,7 +6,7 @@ T-e3nn is an extension of [e3nn](https://github.com/e3nn/e3nn) with consideratio
 
 The aim of this library is to help the development of [Time-reversal](https://en.wikipedia.org/wiki/T-symmetry) [E(3)](https://en.wikipedia.org/wiki/Euclidean_group) equivariant neural networks.
 
-It's built on [version of e3nn](https://github.com/e3nn/e3nn/commit/b521bfcfcf4225ed500c15ec3419a24656f763ca)
+It's built on [this version of e3nn](https://github.com/e3nn/e3nn/commit/b521bfcfcf4225ed500c15ec3419a24656f763ca)
  with nearly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily with T-e3nn. See more details in this [preprint](https://www.researchgate.net/publication/365607322_Time-reversal_equivariant_neural_network_potential_and_Hamiltonian_for_magnetic_materials).
 
 ## Installation
@@ -29,12 +29,12 @@ In T-e3nn, `Irreps` are stored with `(l, p, t)` with `t` about time-reversal sym
 
 You can initial `Irreps` by
 - `Irrep(l, p, t)` or `Irrep(l, p)` with default `t=1`.
-- `Irrep("lee")` or `Irrep("1e")` with default `t=-1`
+- `Irrep("lee")` or `Irrep("1e")` with default `t=1`
 If you want to generate `Irrep` with odd time-reversal, you should include `t` when initializing `Irrep`.
 
 Example:
 - Irrep of spin vector should be `Irrep(1, 1, -1)` or `Irrep("1eo")`
-- Irrep of bond vector can be `Irrep(1, 1)` or `Irrep("1o")` as the same in e3nn or `Irrep(1, 1, 1)` or `Irrep("1oe")` with explicit time-reversal index.
+- Irrep of bond vector can be `Irrep(1, -1)` or `Irrep("1o")` as the same in e3nn or `Irrep(1, -1, 1)` or `Irrep("1oe")` with explicit time-reversal index.
 Iteration like `for mul, (l, p) in irreps` in e3nn should be modified as `for mul, (l, p, t) in irrep` 
 
 
