@@ -2,20 +2,20 @@
 
 [![DOI](https://zenodo.org/badge/doi/10.48550/arXiv.2211.11403.svg)](https://doi.org/10.48550/arXiv.2211.11403)
 
-T-e3nn is an extension of [e3nn](https://github.com/e3nn/e3nn) with consideration of time-reversal symmetry include quantities such as spin and velocity. It's developed on this.
+T-e3nn is an extension of [e3nn](https://github.com/e3nn/e3nn) with consideration of time-reversal symmetry include quantities such as spin and velocity.
 
 The aim of this library is to help the development of [Time-reversal](https://en.wikipedia.org/wiki/T-symmetry) [E(3)](https://en.wikipedia.org/wiki/Euclidean_group) equivariant neural networks.
 
 It's built on [this version of e3nn](https://github.com/e3nn/e3nn/commit/b521bfcfcf4225ed500c15ec3419a24656f763ca)
- with nearly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily with T-e3nn. See more details in this [preprint](https://www.researchgate.net/publication/365607322_Time-reversal_equivariant_neural_network_potential_and_Hamiltonian_for_magnetic_materials).
+ with nearly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily by initializing input considering time-reversal related irreps with T-e3nn. See more details in this [preprint](https://www.researchgate.net/publication/365607322_Time-reversal_equivariant_neural_network_potential_and_Hamiltonian_for_magnetic_materials).
 
 ## Installation
 ```
-$ git clone 
+$ git clone https://github.com/Hongyu-yu/T-e3nn.git
 $ cd T-e3nn/
 $ pip install .
 ```
-Warning: with T-e3nn installed, e3nn packages will be removed in your python environment. Codes about `import e3nn` will be directed to T-e3nn instead. Please check the small difference of API listed below. Generally, very few changes are needed to make to transfer from e3nn to T-e3nn.
+*Warning*: with T-e3nn installed, e3nn packages will be removed in your python environment while original code using e3nn should work fine as before. If any code based on e3nn originally works fine but not for T-e3nn which is carefully prevented during development, please submit an issue. Codes about `import e3nn` will be directed to T-e3nn instead. Please check the small difference of API listed below. Generally, very few changes including the initialization of the input irreps are needed to be made to transfer your model from e3nn to T-e3nn.
 
 ## Difference with E3NN
 
@@ -24,6 +24,8 @@ With a few changes on your original codes based on e3nn, time-reversal can be co
 ### **Irreps**:
 
 #### Initialization
+
+Usually, the only difference between e3nn and T-e3nn for network developer is to initialize the input of network considering time-reversal order.
 
 In T-e3nn, `Irreps` are stored with `(l, p, t)` with `t` about time-reversal symmetry and `l` `p` from e3nn. 
 
@@ -51,6 +53,8 @@ For `x` of `t=-1`, `Tx=-x`. For the physical quantities related with time, such 
 When `t` of all variables is 1, it's degenerate into E(3) and act exactly the same as E3NN.
 
 #### Class method difference
+Difference below is barely used though.
+
 Difference are highlighted with **bold**.
 - D_from_angles(alpha, beta, gamma, k, **kt**=None)
 - D_from_quaternion(q, k, **kt**)
@@ -60,6 +64,8 @@ Difference are highlighted with **bold**.
   - Sort the representations and return also the array index based on sort
 
 ### **Other API difference**
+API below help to initialize the input and its irreps and test of the network.
+
 - io.SphericalTensor(lmax, p_val, p_arg, **t_val**=1, **t_arg**=1)
 - o3.SphericalHarmonics(..., **parity**=True, **time_reversal**=False)
 - o3.spherical_harmonics(..., **parity**=True, **time_reversal**=False)
