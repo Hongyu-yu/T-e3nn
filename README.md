@@ -1,13 +1,14 @@
 # Time-reversal Euclidean neural networks
 
-[![DOI](https://zenodo.org/badge/doi/10.48550/arXiv.2211.11403.svg)](https://doi.org/10.48550/arXiv.2211.11403)
+[![DOI](https://zenodo.org/badge/doi/10.48550/arXiv.2211.11403.svg)](https://link.aps.org/doi/10.1103/PhysRevB.110.104427)
 
 T-e3nn is an extension of [e3nn](https://github.com/e3nn/e3nn) with consideration of time-reversal symmetry include quantities such as spin and velocity.
 
 The aim of this library is to help the development of [Time-reversal](https://en.wikipedia.org/wiki/T-symmetry) [E(3)](https://en.wikipedia.org/wiki/Euclidean_group) equivariant neural networks.
 
 It's built on [this version of e3nn](https://github.com/e3nn/e3nn/commit/b521bfcfcf4225ed500c15ec3419a24656f763ca)
- with nearly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily by initializing input considering time-reversal related irreps with T-e3nn. See more details in this [preprint](https://www.researchgate.net/publication/365607322_Time-reversal_equivariant_neural_network_potential_and_Hamiltonian_for_magnetic_materials).
+ with nearly the same usage API considering Time-reversal and E(3) symmetry. So you can transfer your E(3) equivariant model into a Time-reversal E(3) equivariant model easily by initializing input considering time-reversal related irreps with T-e3nn. See more details in this [H. Yu, B. Liu, Y. Zhong, L. Hong, J. Ji, C. Xu, X. Gong, and H. Xiang, Physics-informed time-reversal equivariant neural network potential for magnetic materials, Phys. Rev. B 110, 104427 (2024).
+](https://link.aps.org/doi/10.1103/PhysRevB.110.104427).
 
 ## Installation
 ```
