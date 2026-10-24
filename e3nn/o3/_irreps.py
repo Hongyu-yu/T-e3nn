@@ -111,13 +111,13 @@ class Irrep(tuple):
 
     @classmethod
     def iterator(cls, lmax=None):
-        r"""Iterator through all the irreps of :math:`O(3)`
+        r"""Iterator through all angular degrees, parities, and time-reversal parities.
 
         Examples
         --------
         >>> it = Irrep.iterator()
         >>> next(it), next(it), next(it), next(it)
-        (0e, 0o, 1o, 1e)
+        (0ee, 0eo, 0oe, 0oo)
         """
         for l in itertools.count():
             yield Irrep(l, (-1) ** l, (-1) ** l)
@@ -467,7 +467,7 @@ class Irreps(tuple):
 
         4) For rij X si
         >>> Irreps.spherical_harmonics(4, p=-1, t=-1)
-        1x0ee+1x1oo+1x2ee+1x3oo
+        1x0ee+1x1oo+1x2ee+1x3oo+1x4ee
         """
         return Irreps([(1, (l, p**l, t**l)) for l in range(lmax + 1)])
 
@@ -564,7 +564,7 @@ class Irreps(tuple):
     def __mul__(self, other):
         r"""
         >>> (Irreps('2x1e') * 3).simplify()
-        6x1e
+        6x1ee
         """
         if isinstance(other, Irreps):
             raise NotImplementedError("Use o3.TensorProduct for this, see the documentation")
@@ -573,7 +573,7 @@ class Irreps(tuple):
     def __rmul__(self, other):
         r"""
         >>> 2 * Irreps('0e + 1e')
-        1x0e+1x1e+1x0e+1x1e
+        1x0ee+1x1ee+1x0ee+1x1ee
         """
         return Irreps(super().__rmul__(other))
 

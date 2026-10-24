@@ -24,11 +24,11 @@ class Activation(torch.nn.Module):
 
     >>> a = Activation("256x0o", [torch.abs])
     >>> a.irreps_out
-    256x0e
+    256x0ee
 
     >>> a = Activation("256x0o+16x1e", [None, None])
     >>> a.irreps_out
-    256x0o+16x1e
+    256x0oe+16x1ee
     """
 
     def __init__(self, irreps_in, acts):

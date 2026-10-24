@@ -4,57 +4,112 @@ on:
   push:
     branches:
     - main
-
   pull_request:
     branches:
     - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.7', '3.10']
-        torch-version: ['1.11.0', '1.12.1']
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      PYTHONHASHSEED: '0'
+      PYTHONDONTWRITEBYTECODE: '1'
+      CUDA_VISIBLE_DEVICES: ''
+      UV_PYTHON_DOWNLOADS: never
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install flake8
+        python-version: '3.10.20'
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: '0.9.22'
+        enable-cache: true
+        cache-dependency-glob: '.github/requirements-*.txt'
+    - name: Install the pinned CPU test environment
       run: |
-        pip install flake8
-    - name: Lint with flake8
+        uv venv --python python .venv
+        uv pip install --python .venv/bin/python 'torch==2.11.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+        uv pip install --python .venv/bin/python -r .github/requirements-ci.txt
+        uv pip install --python .venv/bin/python --no-index --no-deps --only-binary=:all: \
+          --find-links 'https://data.pyg.org/whl/torch-2.11.0+cpu.html' -r .github/requirements-pyg-cpu.txt
+        uv pip install --python .venv/bin/python --no-deps --no-build-isolation .
+    - name: Verify the CPU runtime and graph extensions
       run: |
-        # Stop the build if there are style issues, Python syntax errors, or undefined names
-        flake8 . --count --show-source --statistics
-    - name: Install dependencies
-      env:
-        TORCH: "${{ matrix.torch-version }}"
-        CUDA: "cpu"
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uv run --no-project --no-python-downloads --python .venv/bin/python python - <<'PY'
+        import e3nn
+        import torch
+        import torch_cluster
+        import torch_geometric
+        import torch_scatter
+        assert torch.__version__ == "2.11.0+cpu" and torch.version.cuda is None
+        assert not torch.cuda.is_available()
+        assert e3nn.__version__ == "0.5.0+spin"
+        assert torch_geometric.__version__ == "2.7.0"
+        values = torch.tensor([1.0, 2.0, 3.0])
+        index = torch.tensor([0, 1, 0])
+        assert torch.equal(torch_scatter.scatter(values, index, dim_size=2), torch.tensor([4.0, 2.0]))
+        assert torch_cluster.radius_graph(torch.tensor([[0., 0., 0.], [1., 0., 0.]]), r=2.).shape == (2, 2)
+        print("CPU_RUNTIME_VERIFIED", torch.__version__, e3nn.__version__)
+        PY
+    - name: Check formatting and lint
       run: |
-        python -m pip install --upgrade pip
-        pip install wheel
-        pip install torch==${TORCH} torchvision -f https://download.pytorch.org/whl/cpu/torch_stable.html
-        pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-${TORCH}+${CUDA}.html
-        pip install .
-
-        pip install plotly
-    - name: Install pytest
+        uv run --no-project --no-python-downloads --python .venv/bin/python black --check .
+        uv run --no-project --no-python-downloads --python .venv/bin/python flake8 . --extend-exclude .venv --count --show-source --statistics
+    - name: Run the complete tests, package doctests, and benchmark contracts
       run: |
-        pip install pytest pytest-cov
-        pip install coveralls
-    - name: Test with pytest
+        uv run --no-project --no-python-downloads --python .venv/bin/python python - <<'PY'
+        import random
+        import coverage
+        import numpy as np
+        import pytest
+        import torch
+        random.seed(0)
+        np.random.seed(0)
+        torch.manual_seed(0)
+        cov = coverage.Coverage(source=["e3nn"])
+        cov.start()
+        try:
+            status = pytest.main([
+                "tests", "e3nn", "benchmarks/test_tensor_product.py", "--doctest-modules",
+                "--confcutdir=.", "--rootdir=.", "-c", "pyproject.toml", "-q", "-ra",
+                "-p", "no:cacheprovider", "--junitxml=test-results.xml",
+            ])
+        finally:
+            cov.stop()
+            cov.save()
+        raise SystemExit(status)
+        PY
+    - name: Preserve the four example doctests in an isolated process
+      # Importing the whole examples tree also executes data-generator CLIs and
+      # makes its conftest collide with tests/conftest under doctest collection.
+      if: always()
       run: |
-        coverage run --source=e3nn -m pytest --doctest-modules --ignore=docs/ .
-    - name: Upload to coveralls
+        uv run --no-project --no-python-downloads --python .venv/bin/python coverage run --append --source=e3nn -m pytest \
+          examples/atom_types.py examples/tetris.py examples/tetris_gate.py examples/tetris_polynomial.py \
+          --doctest-modules --confcutdir=examples --rootdir=examples -c pyproject.toml \
+          -q -ra -p no:cacheprovider --junitxml=example-test-results.xml
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: python310-torch211-cpu-results
+        path: |
+          test-results.xml
+          example-test-results.xml
+        if-no-files-found: warn
+    - name: Upload coverage to upstream Coveralls
       env:
         COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-      # Only send to coveralls if the token has been set and the user pushed
-      if: env.COVERALLS_TOKEN != null && github.event_name == 'push'
+      if: github.repository == 'e3nn/e3nn' && github.event_name == 'push' && env.COVERALLS_TOKEN != ''
       run: |
-        COVERALLS_REPO_TOKEN=${{ secrets.COVERALLS_TOKEN }} coveralls
+        uv pip install --python .venv/bin/python 'coveralls==3.3.1'
+        COVERALLS_REPO_TOKEN="$COVERALLS_TOKEN" uv run --no-project --no-python-downloads --python .venv/bin/python coveralls

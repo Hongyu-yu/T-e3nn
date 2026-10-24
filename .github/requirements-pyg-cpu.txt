@@ -1,0 +1,3 @@
+# Binary extensions matched to Torch 2.11 CPU and CPython 3.10 on Linux.
+torch-scatter==2.1.2+pt211cpu
+torch-cluster==1.6.3+pt211cpu

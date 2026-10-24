@@ -4,8 +4,7 @@ from e3nn.math import soft_unit_step
 
 
 def test_grad():
-    torch.set_default_dtype(torch.float64)
-    x = torch.linspace(-1, 1, 1000, requires_grad=True)
+    x = torch.linspace(-1, 1, 1000, dtype=torch.float64, requires_grad=True)
 
     def f(x):
         return soft_unit_step(x).sum()

@@ -119,7 +119,7 @@ class ReducedTensorProducts(CodeGenMixin, torch.nn.Module):
 
     >>> tp = ReducedTensorProducts('ijkl=jikl=ikjl=ijlk', i="1e")
     >>> tp.irreps_out
-    1x0e+1x2e+1x4e
+    1x0ee+1x2ee+1x4ee
 
     >>> tp = ReducedTensorProducts('ij=ji', i='1o')
     >>> x, y = torch.randn(2, 3)

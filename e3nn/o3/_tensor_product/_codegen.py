@@ -20,6 +20,62 @@ def _sum_tensors(xs: List[torch.Tensor], shape: torch.Size, like: torch.Tensor):
     return like.new_zeros(shape)
 
 
+def _uvu_assembly_groups(irreps_in1, irreps_in2, irreps_out, instructions, shared_weights):
+    """Plan an equivalent assembly only for the measured external-weight uvu family.
+
+    CatBackward creates one full-width slice gradient per output in a second
+    backward. Grouped stack reduces each inner select gradient to its group
+    width, at the cost of one full-width slice per group. Balanced groups
+    minimize this storage-work estimate without depending on batch size.
+    This is not an allocator-cache estimate; resource admission remains separate.
+
+    Missing/zero-width paths retain the original graph because a constant-zero
+    output has different gradient participation from a computed path scaled by
+    zero. Instruction order and the existing per-output summation are preserved.
+    """
+    if shared_weights or len(irreps_out) < 2 or not instructions:
+        return None
+    # Extra stack launches regress pure-scalar inference on both measured GPUs.
+    # Preserve the entire scalar-output family rather than fitting a size cutoff.
+    if all(mul_ir.ir.l == 0 for mul_ir in irreps_out):
+        return None
+    if any(mul_ir.mul == 0 for irreps in (irreps_in1, irreps_in2, irreps_out) for mul_ir in irreps):
+        return None
+    if any(
+        ins.connection_mode != "uvu" or not ins.has_weight or irreps_in2[ins.i_in2].mul != 1 or 0 in ins.path_shape
+        for ins in instructions
+    ):
+        return None
+    if {ins.i_out for ins in instructions} != set(range(len(irreps_out))):
+        return None
+
+    widths = [mul_ir.dim for mul_ir in irreps_out]
+    total = sum(widths)
+    runs = []
+    for width in widths:
+        if not runs or runs[-1][0] != width:
+            runs.append([width, 0])
+        runs[-1][1] += 1
+    groups = []
+    for width, count in runs:
+
+        def cost(chunks):
+            quotient, remainder = divmod(count, chunks)
+            large = (quotient + 1) ** 2 if quotient + 1 > 1 else 0
+            small = quotient**2 if quotient > 1 else 0
+            return chunks * total + width * (remainder * large + (chunks - remainder) * small)
+
+        chunks = min(range(1, count + 1), key=lambda value: (cost(value), value))
+        quotient, remainder = divmod(count, chunks)
+        groups.extend((width, quotient + int(index < remainder)) for index in range(chunks))
+    estimated = (len(groups) * total if len(groups) > 1 else 0) + sum(
+        width * count**2 for width, count in groups if count > 1
+    )
+    if estimated >= len(widths) * total:
+        return None
+    return [count for _, count in groups]
+
+
 def codegen_tensor_product_left_right(
     irreps_in1: o3.Irreps,
     irreps_in2: o3.Irreps,
@@ -29,6 +85,9 @@ def codegen_tensor_product_left_right(
     specialized_code: bool = True,
     optimize_einsums: bool = True,
 ) -> fx.GraphModule:
+    # Decide before emitting nodes: ineligible and unprofitable cases keep even
+    # their raw-FX node identities, including the original weight slices/cat.
+    assembly_groups = _uvu_assembly_groups(irreps_in1, irreps_in2, irreps_out, instructions, shared_weights)
     graph = fx.Graph()
 
     # = Function definitions =
@@ -81,6 +140,8 @@ def codegen_tensor_product_left_right(
     if weight_numel > 0:
         weights = weights.reshape(-1, weight_numel)
     del weight_numel
+    if assembly_groups is not None:
+        weight_parts = torch.split(weights, [prod(ins.path_shape) for ins in instructions], dim=1)
 
     # = extract individual input irreps =
     # If only one input irrep, can avoid creating a view
@@ -110,7 +171,7 @@ def codegen_tensor_product_left_right(
 
     outputs = []
 
-    for ins in instructions:
+    for instruction_index, ins in enumerate(instructions):
         mul_ir_in1 = irreps_in1[ins.i_in1]
         mul_ir_in2 = irreps_in2[ins.i_in2]
         mul_ir_out = irreps_out[ins.i_out]
@@ -129,16 +190,26 @@ def codegen_tensor_product_left_right(
 
         if ins.has_weight:
             # Extract the weight from the flattened weight tensor
-            w = weights[:, flat_weight_index : flat_weight_index + prod(ins.path_shape)].reshape(
-                (() if shared_weights else (-1,)) + tuple(ins.path_shape)
-            )
+            if assembly_groups is None:
+                w = weights[:, flat_weight_index : flat_weight_index + prod(ins.path_shape)].reshape(
+                    (() if shared_weights else (-1,)) + tuple(ins.path_shape)
+                )
+            else:
+                w = weight_parts[instruction_index].reshape((-1,) + tuple(ins.path_shape))
             flat_weight_index += prod(ins.path_shape)
 
         # Construct the general xx in case this instruction isn't specialized
         # If this isn't used, the dead code will get removed
-        key = (ins.i_in1, ins.i_in2, ins.connection_mode[:2])
+        triangular = ins.connection_mode == "u<vw"
+        key = (ins.i_in1, ins.i_in2, "u<v" if triangular else ins.connection_mode[:2])
         if key not in xx_dict:
-            if ins.connection_mode[:2] == "uu":
+            if triangular:
+                name = f"_triu_indices_{mul_ir_in1.mul}"
+                constants[name] = torch.triu_indices(mul_ir_in1.mul, mul_ir_in1.mul, 1)
+                i = fx.Proxy(graph.get_attr(name), tracer=tracer)
+                # Selecting first avoids materializing the unused diagonal and lower triangle.
+                xx_dict[key] = torch.einsum("zui,zuj->zuij", x1[:, i[0]], x2[:, i[1]])
+            elif ins.connection_mode[:2] == "uu":
                 xx_dict[key] = torch.einsum("zui,zuj->zuij", x1, x2)
             else:
                 xx_dict[key] = torch.einsum("zui,zvj->zuvij", x1, x2)
@@ -287,12 +358,40 @@ def codegen_tensor_product_left_right(
                     result = torch.einsum("ijk,zuij->zuk", w3j, xx)
         if ins.connection_mode == "uvuv":
             assert mul_ir_in1.mul * mul_ir_in2.mul == mul_ir_out.mul
+            if specialized_code and 0 in l1l2l3:
+                # Contract the saved coefficient with a small operand instead of scaling the full output.
+                # Reading the buffer also preserves rounding before a module dtype conversion.
+                scale = w3j[0, 0, 0]
             if ins.has_weight:
-                # TODO implement specialized code
-                result = torch.einsum(f"{z}uv,ijk,zuvij->zuvk", w, w3j, xx)
+                if specialized_code and l1l2l3 == (0, 0, 0):
+                    result = torch.einsum(
+                        f"{z}uv,zu,zv,->zuv",
+                        w,
+                        x1.reshape(batch_numel, mul_ir_in1.dim),
+                        x2.reshape(batch_numel, mul_ir_in2.dim),
+                        scale,
+                    )
+                elif specialized_code and mul_ir_in1.ir.l == 0:
+                    result = torch.einsum(f"{z}uv,zu,zvj,->zuvj", w, x1.reshape(batch_numel, mul_ir_in1.dim), x2, scale)
+                elif specialized_code and mul_ir_in2.ir.l == 0:
+                    result = torch.einsum(f"{z}uv,zui,zv,->zuvi", w, x1, x2.reshape(batch_numel, mul_ir_in2.dim), scale)
+                elif specialized_code and mul_ir_out.ir.l == 0:
+                    result = torch.einsum(f"{z}uv,zui,zvi,->zuv", w, x1, x2, scale)
+                else:
+                    result = torch.einsum(f"{z}uv,ijk,zuvij->zuvk", w, w3j, xx)
             else:
-                # TODO implement specialized code
-                result = torch.einsum("ijk,zuvij->zuvk", w3j, xx)
+                if specialized_code and l1l2l3 == (0, 0, 0):
+                    result = torch.einsum(
+                        "zu,zv,->zuv", x1.reshape(batch_numel, mul_ir_in1.dim), x2.reshape(batch_numel, mul_ir_in2.dim), scale
+                    )
+                elif specialized_code and mul_ir_in1.ir.l == 0:
+                    result = torch.einsum("zu,zvj,->zuvj", x1.reshape(batch_numel, mul_ir_in1.dim), x2, scale)
+                elif specialized_code and mul_ir_in2.ir.l == 0:
+                    result = torch.einsum("zui,zv,->zuvi", x1, x2.reshape(batch_numel, mul_ir_in2.dim), scale)
+                elif specialized_code and mul_ir_out.ir.l == 0:
+                    result = torch.einsum("zui,zvi,->zuv", x1, x2, scale)
+                else:
+                    result = torch.einsum("ijk,zuvij->zuvk", w3j, xx)
         if ins.connection_mode == "uvu<v":
             assert mul_ir_in1.mul == mul_ir_in2.mul
             assert mul_ir_in1.mul * (mul_ir_in1.mul - 1) // 2 == mul_ir_out.mul
@@ -309,10 +408,6 @@ def codegen_tensor_product_left_right(
         if ins.connection_mode == "u<vw":
             assert mul_ir_in1.mul == mul_ir_in2.mul
             assert ins.has_weight
-            name = f"_triu_indices_{mul_ir_in1.mul}"
-            constants[name] = torch.triu_indices(mul_ir_in1.mul, mul_ir_in1.mul, 1)
-            i = fx.Proxy(graph.get_attr(name), tracer=tracer)
-            xx = xx[:, i[0], i[1]]  # zuvij -> zqij
             # TODO implement specialized code
             result = torch.einsum(f"{z}qw,ijk,zqij->zwk", w, w3j, xx)
 
@@ -341,7 +436,17 @@ def codegen_tensor_product_left_right(
         for i_out, mul_ir_out in enumerate(irreps_out)
         if mul_ir_out.mul > 0
     ]
-    if len(outputs) > 1:
+    if assembly_groups is not None:
+        grouped = []
+        offset = 0
+        for count in assembly_groups:
+            if count == 1:
+                grouped.append(outputs[offset])
+            else:
+                grouped.append(torch.stack(outputs[offset : offset + count], dim=1).flatten(1))
+            offset += count
+        outputs = torch.cat(grouped, dim=1) if len(grouped) > 1 else grouped[0]
+    elif len(outputs) > 1:
         outputs = torch.cat(outputs, dim=1)
     else:
         # Avoid an unnecessary copy in a size one torch.cat

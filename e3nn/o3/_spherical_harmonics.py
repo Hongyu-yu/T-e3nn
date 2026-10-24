@@ -99,7 +99,13 @@ class SphericalHarmonics(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # - PROFILER - with torch.autograd.profiler.record_function(self._prof_str):
         if self.normalize:
-            x = torch.nn.functional.normalize(x, dim=-1)  # forward 0's instead of nan for zero-radius
+            # Inside the original eps ball normalization is exactly x / eps. Keep the
+            # inactive norm away from zero so its undefined second derivative cannot
+            # contaminate that linear branch (including unused rows in a later gather).
+            small = x.norm(p=2, dim=-1, keepdim=True) < 1e-12
+            safe = torch.where(small, torch.ones_like(x), x)
+            denominator = safe.norm(p=2, dim=-1, keepdim=True).clamp_min(1e-12)
+            x = x / torch.where(small, torch.full_like(denominator, 1e-12), denominator)
 
         sh = _spherical_harmonics(self._lmax, x[..., 0], x[..., 1], x[..., 2])
 

@@ -178,8 +178,8 @@ class SphericalTensor(o3.Irreps):
         ...     1.0,
         ... ])
         >>> x = s.sum_of_diracs(pos, val)
-        >>> s.signal_xyz(x, torch.eye(3)).mul(10.0).round()
-        tensor([-10.,  10.,  -0.])
+        >>> rounded = s.signal_xyz(x, torch.eye(3)).mul(10.0).round()
+        >>> assert torch.equal(rounded, torch.tensor([-10., 10., 0.]))
 
         >>> s.sum_of_diracs(torch.empty(1, 0, 2, 3), torch.empty(2, 0, 1)).shape
         torch.Size([2, 0, 64])

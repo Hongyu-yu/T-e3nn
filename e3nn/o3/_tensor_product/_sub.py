@@ -97,7 +97,7 @@ class ElementwiseTensorProduct(TensorProduct):
     Elementwise scalar product
 
     >>> ElementwiseTensorProduct("5x1o + 5x1e", "10x1e", ["0e", "0o"])
-    ElementwiseTensorProduct(5x1o+5x1e x 10x1e -> 5x0o+5x0e | 10 paths | 0 weights)
+    ElementwiseTensorProduct(5x1oe+5x1ee x 10x1ee -> 5x0oe+5x0ee | 10 paths | 0 weights)
 
     """
 

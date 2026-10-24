@@ -142,12 +142,16 @@ def format_equivariance_error(errors: dict) -> str:
     -------
         A string.
     """
-    return "\n".join(
-        "(parity_k={:d}, did_translate={}) -> max error={:.3e} in argument {}".format(
-            int(k[0]), bool(k[1]), float(v.max()), int(v.argmax())
-        )
-        for k, v in errors.items()
-    )
+    lines = []
+    for key, error in errors.items():
+        context = "parity_k={:d}, did_translate={}".format(int(key[0]), bool(key[1]))
+        # Older callers may still provide the original parity/translation key pair.
+        if len(key) > 2:
+            context += ", tr_k={:d}".format(int(key[2]))
+        if len(key) > 3:
+            context += ", only_rot_spin={}".format(bool(key[3]))
+        lines.append("({}) -> max error={:.3e} in argument {}".format(context, float(error.max()), int(error.argmax())))
+    return "\n".join(lines)
 
 
 def assert_equivariant(func, args_in=None, irreps_in=None, irreps_out=None, tolerance=None, **kwargs) -> dict:
@@ -163,17 +167,21 @@ def assert_equivariant(func, args_in=None, irreps_in=None, irreps_out=None, tole
         irreps_out : object
             see ``equivariance_error``
         tolerance : float or None
-            the threshold below which the equivariance error must fall.
+            the finite, nonnegative threshold below which the equivariance error must fall.
             If ``None``, (the default), ``FLOAT_TOLERANCE[torch.get_default_dtype()]`` is used.
         **kwargs : kwargs
             passed through to ``equivariance_error``.
 
     Returns
     -------
-    The same as ``equivariance_error``: a dictionary mapping tuples ``(parity_k, did_translate)`` to errors
+    The same as ``equivariance_error``: a dictionary mapping tuples
+    ``(parity_k, did_translate, tr_k, only_rot_spin)`` to errors
     """
     # Prevent pytest from showing this function in the traceback
     __tracebackhide__ = True
+
+    if tolerance is not None and (not math.isfinite(tolerance) or tolerance < 0):
+        raise ValueError("tolerance must be finite and nonnegative")
 
     args_in, irreps_in, irreps_out = _get_args_in(func, args_in=args_in, irreps_in=irreps_in, irreps_out=irreps_out)
 
@@ -190,10 +198,10 @@ def assert_equivariant(func, args_in=None, irreps_in=None, irreps_out=None, tole
     if tolerance is None:
         tolerance = FLOAT_TOLERANCE[torch.get_default_dtype()]
 
-    problems = {case: err for case, err in errors.items() if err.max() > tolerance}
+    problems = {case: err for case, err in errors.items() if not torch.isfinite(err).all() or err.max() > tolerance}
 
     if len(problems) != 0:
-        errstr = "Largest componentwise equivariance error was too large for: "
+        errstr = "Non-finite or excessive componentwise equivariance error for: "
         errstr += format_equivariance_error(problems)
         assert len(problems) == 0, errstr
 
@@ -230,21 +238,23 @@ def equivariance_error(
     irreps_out : list of `e3nn.o3.Irreps` or `e3nn.o3.Irreps`
         the out irreps for each of the return values of ``func``. Accepts similar values to ``irreps_in``.
     ntrials : int
-        run this many trials with random transforms
+        run this many trials with random transforms; must be positive
     do_parity : bool
         whether to test parity
     do_time_reversal : bool
-        whether to test parity
+        whether to test time reversal
     do_translation : bool
         whether to test translation for ``'cartesian'`` inputs
-    only_rot_spin : bool:
+    do_only_rot_spin : bool:
         whether to test only rot spin while keep other the same. Used in tests for not considering SOC
 
     Returns
     -------
-    dictionary mapping tuples ``(parity_k, did_translate)`` to an array of errors,
+    dictionary mapping tuples ``(parity_k, did_translate, tr_k, only_rot_spin)`` to an array of errors,
     each entry the biggest over all trials for that output, in order.
     """
+    if ntrials < 1:
+        raise ValueError("ntrials must be positive to measure equivariance")
     irreps_in, irreps_out = _get_io_irreps(func, irreps_in=irreps_in, irreps_out=irreps_out)
 
     if do_parity:
@@ -330,9 +340,12 @@ def equivariance_error(
 
             # compute errors in the transform dtype,
             # then convert back to default later
+            if not x1 or any(a.numel() == 0 or b.numel() == 0 for a, b in zip(x1, x2)):
+                raise ValueError(f"Cannot measure equivariance of an empty output for transform {this_test}")
             errors = torch.stack([(a - b).abs().max() for a, b in zip(x1, x2)])
 
-            biggest_errs[this_test] = torch.where(errors > biggest_errs[this_test], errors, biggest_errs[this_test])
+            # A NaN must survive aggregation; comparison-based selection silently drops it.
+            biggest_errs[this_test] = torch.maximum(errors, biggest_errs[this_test])
 
     # convert errors back to default dtype to return:
     return {k: v.to(torch.get_default_dtype()) for k, v in biggest_errs.items()}

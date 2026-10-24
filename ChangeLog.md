@@ -6,10 +6,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.0] - 2026-10-24
+
+This is a T-e3nn GitHub release/tag. The Python distribution and import version
+remain `e3nn==0.5.0+spin` for compatibility with existing SpinGNN version checks;
+it is not an upstream e3nn 1.0 or PyPI release. See the
+[release notes](docs/releases/v1.0.md) for measured workloads and limitations.
+
 ### Added
 - L=12 spherical harmonics
+- Source-bound tensor-product benchmarks with independent-process GPU memory
+  sampling, higher-order derivative comparisons, and paired performance gates.
+
+### Changed
+- Select valid channel pairs before forming weighted `u<vw` outer products.
+- Specialize scalar-input and scalar-output `uvuv` contractions using the saved
+  Wigner coefficients, preserving checkpoint state and dtype-conversion rounding.
+- Split per-sample weighted `uvu` paths once and balance contiguous equal-width
+  output groups when every path has unit second-input multiplicity and the
+  output is completely populated. Preserve the original graph for pure-scalar
+  outputs and unsupported patterns, including shared or unweighted paths.
 
 ### Fixed
+- Preserve structured and flattened per-path weight lists, their broadcast batch
+  dimensions, and empty lists for tensor products without weighted paths.
+- Compute instruction weight-view offsets using only weighted paths.
+- Reject non-finite equivariance errors and report spin/time-reversal transforms.
+- Reject non-finite or negative equivariance tolerances before model execution,
+  preserving zero tolerance and the existing dtype-dependent defaults.
+- Keep gradcheck precision local to its inputs so FP32 tests cannot silently
+  inherit a leaked FP64 default from the soft-unit-step test.
+- Keep normalized spherical-harmonic second derivatives finite at zero input,
+  preserving the existing normalization threshold and nonzero-vector algorithm.
+- Keep trusted test serialization roundtrips compatible with modern PyTorch and
+  update fork-specific doctest representations.
+- Include the existing v2203 sparse voxel module in built distributions.
+- Restrict the inherited PyPI-upload workflow to `e3nn/e3nn`, so this fork's
+  GitHub releases do not attempt to publish the upstream package.
+- Align CI with the reviewed Python 3.10/Torch 2.11 CPU configuration and pin
+  its numerical dependencies and matching PyG wheels. Preserve the complete
+  test/doctest suites and isolate the four existing example doctests from
+  executable data generators; restrict Coveralls upload to upstream.
 - `TensorProduct.visualize` now works even if the TP is on the GPU.
 - Github actions only trigger a push to coveralls if the corresponding token is set in github secrets.
 

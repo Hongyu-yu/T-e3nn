@@ -79,7 +79,7 @@ class Gate(torch.nn.Module):
 
     >>> g = Gate("16x0o", [torch.tanh], "32x0o", [torch.tanh], "16x1e+16x1o")
     >>> g.irreps_out
-    16x0o+16x1o+16x1e
+    16x0oe+16x1oe+16x1ee
     """
 
     def __init__(self, irreps_scalars, act_scalars, irreps_gates, act_gates, irreps_gated):

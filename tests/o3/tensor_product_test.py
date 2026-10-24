@@ -434,12 +434,12 @@ def test_deepcopy(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
 
 
 @pytest.mark.parametrize("l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight", random_params(n=1))
-def test_save(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
+def test_save(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight, load_trusted_module):
     tp = make_tp(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight)
     # Saved TP
     with tempfile.NamedTemporaryFile(suffix=".pth") as tmp:
         torch.save(tp, tmp.name)
-        tp2 = torch.load(tmp.name)
+        tp2 = load_trusted_module(tmp.name)
     # JITed, saved TP
     with tempfile.NamedTemporaryFile(suffix=".pth") as tmp:
         tp_jit = assert_auto_jitable(tp)
@@ -448,7 +448,7 @@ def test_save(l1, p1, t1, l2, p2, t2, lo, po, t0, mode, weight):
     # Double-saved TP
     with tempfile.NamedTemporaryFile(suffix=".pth") as tmp:
         torch.save(tp2, tmp.name)
-        tp4 = torch.load(tmp.name)
+        tp4 = load_trusted_module(tmp.name)
     x1 = torch.randn(2, tp.irreps_in1.dim)
     x2 = torch.randn(2, tp.irreps_in2.dim)
     res1 = tp(x1, x2)

@@ -438,9 +438,31 @@ class TensorProduct(CodeGenMixin, torch.nn.Module):
     @torch.jit.unused
     def _prep_weights_python(self, weight: Optional[Union[torch.Tensor, List[torch.Tensor]]]) -> Optional[torch.Tensor]:
         if isinstance(weight, list):
+            if not weight and self.weight_numel == 0:
+                return None
             weight_shapes = [ins.path_shape for ins in self.instructions if ins.has_weight]
+            if len(weight) != len(weight_shapes):
+                raise ValueError("Weight list must contain one tensor for each weighted instruction")
             if not self.shared_weights:
-                weight = [w.reshape(-1, prod(shape)) for w, shape in zip(weight, weight_shapes)]
+                packed_weights = []
+                for w, shape in zip(weight, weight_shapes):
+                    size = prod(shape)
+                    # Structured suffixes take precedence when singleton path axes
+                    # also make a flattened interpretation possible.
+                    if w.shape[-len(shape) :] == shape:
+                        leading = w.shape[: -len(shape)]
+                    elif w.ndim > 0 and w.shape[-1] == size:
+                        leading = w.shape[:-1]
+                    else:
+                        # Preserve older partial/alternate layouts whose batch axes
+                        # cannot be inferred from either documented representation.
+                        packed_weights.append(w.reshape(-1, size))
+                        continue
+                    packed_weights.append(w.reshape((leading or (1,)) + (size,)))
+                weight = packed_weights
+                # Path widths differ, so broadcast only their batch axes using single-column views.
+                batchshape = torch.broadcast_tensors(*[w[..., :1] for w in weight])[0].shape[:-1]
+                weight = [w.expand(batchshape + (w.shape[-1],)) for w in weight]
             else:
                 weight = [w.reshape(prod(shape)) for w, shape in zip(weight, weight_shapes)]
             return torch.cat(weight, dim=-1)
@@ -562,7 +584,7 @@ class TensorProduct(CodeGenMixin, torch.nn.Module):
         """
         if not self.instructions[instruction].has_weight:
             raise ValueError(f"Instruction {instruction} has no weights.")
-        offset = sum(prod(ins.path_shape) for ins in self.instructions[:instruction])
+        offset = sum(prod(ins.path_shape) for ins in self.instructions[:instruction] if ins.has_weight)
         ins = self.instructions[instruction]
         weight = self._get_weights(weight)
         batchshape = weight.shape[:-1]
