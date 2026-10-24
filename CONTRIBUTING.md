@@ -43,6 +43,13 @@ not establish that all older versions allowed by package metadata have been
 revalidated. The complete recorded T7 suite used CUDA-build Torch with CUDA
 disabled; the new CPU-wheel lane must pass independently on GitHub.
 
+The repository's `local_only` Actions policy is retained. Test CI uses reviewed
+native `run` steps rather than external `uses` actions: it checks out the exact
+public `GITHUB_SHA` with the runner's GitHub CLI, then verifies SHA-256 digests
+before extracting pinned CPython 3.10.20 (20260807) and uv 0.9.22 under
+`RUNNER_TEMP`. The job token is scoped only to the checkout step. Do not replace
+this with an unpinned installer or relax the repository action policy.
+
 The complete library test selection is `tests e3nn
 benchmarks/test_tensor_product.py --doctest-modules`. Preserve its test cases,
 dtype coverage, existing expected failures and numerical tolerances. Seed
@@ -58,6 +65,9 @@ for actual GPU work.
 Fork test jobs do not require upstream upload secrets. PyPI publishing and
 Coveralls upload are restricted to `e3nn/e3nn`; GitHub releases of T-e3nn
 retain the `0.5.0+spin` package compatibility version.
+JUnit counts are written to `GITHUB_STEP_SUMMARY` and stdout; complete pytest
+output remains in the workflow logs for archival. No external artifact-upload
+action is required. A platform startup failure with no jobs is not a test pass.
 
 For formatting we use the [black](https://black.readthedocs.io/en/stable/index.html) library.
 It can be installed with:

@@ -26,18 +26,48 @@ jobs:
       UV_PYTHON_DOWNLOADS: never
 
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10.20'
-    - uses: astral-sh/setup-uv@v6
-      with:
-        version: '0.9.22'
-        enable-cache: true
-        cache-dependency-glob: '.github/requirements-*.txt'
+    - name: Check out the exact public repository commit
+      # Repository policy allows local workflow code, not external uses actions.
+      # Authentication is scoped to checkout and is never embedded in the URL.
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -Eeuo pipefail
+        [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" == false ]]
+        gh auth setup-git
+        gh repo clone "https://github.com/$GITHUB_REPOSITORY.git" "$GITHUB_WORKSPACE" -- --no-checkout --depth=1
+        git -C "$GITHUB_WORKSPACE" fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+        git -C "$GITHUB_WORKSPACE" checkout --detach "$GITHUB_SHA"
+        [[ "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" == "$GITHUB_SHA" ]]
+        printf 'Checked out %s\n' "$GITHUB_SHA"
+    - name: Bootstrap checksum-bound CPython and uv
+      run: |
+        set -Eeuo pipefail
+        CI_PYTHON_DIR="$RUNNER_TEMP/te3nn-cpython-3.10.20"
+        CI_PYTHON_ARCHIVE="$RUNNER_TEMP/te3nn-cpython-3.10.20-20260807.tar.gz"
+        CI_PYTHON_URL='https://github.com/astral-sh/python-build-standalone/releases/download/20260807/cpython-3.10.20%2B20260807-x86_64-unknown-linux-gnu-install_only.tar.gz'
+        CI_PYTHON_SHA256=36d480cf1f8ca45308c6cfedaad54a127e973e0525a97ca19a0229dbd5ce5f13
+        curl --fail --silent --show-error --location --retry 3 "$CI_PYTHON_URL" --output "$CI_PYTHON_ARCHIVE"
+        printf '%s  %s\n' "$CI_PYTHON_SHA256" "$CI_PYTHON_ARCHIVE" | sha256sum --check --strict
+        mkdir "$CI_PYTHON_DIR"
+        tar -xzf "$CI_PYTHON_ARCHIVE" -C "$CI_PYTHON_DIR" --strip-components=1
+        "$CI_PYTHON_DIR/bin/python3.10" -c 'import sys; assert sys.version_info[:3] == (3, 10, 20), sys.version'
+        printf '%s\n' "$CI_PYTHON_DIR/bin" >> "$GITHUB_PATH"
+
+        CI_UV_DIR="$RUNNER_TEMP/te3nn-uv-0.9.22"
+        CI_UV_ARCHIVE="$RUNNER_TEMP/te3nn-uv-0.9.22.tar.gz"
+        CI_UV_URL='https://github.com/astral-sh/uv/releases/download/0.9.22/uv-x86_64-unknown-linux-gnu.tar.gz'
+        CI_UV_SHA256=e170aed70ac0225feee612e855d3a57ae73c61ffb22c7e52c3fd33b87c286508
+        curl --fail --silent --show-error --location --retry 3 "$CI_UV_URL" --output "$CI_UV_ARCHIVE"
+        printf '%s  %s\n' "$CI_UV_SHA256" "$CI_UV_ARCHIVE" | sha256sum --check --strict
+        mkdir "$CI_UV_DIR"
+        tar -xzf "$CI_UV_ARCHIVE" -C "$CI_UV_DIR" --strip-components=1
+        [[ "$("$CI_UV_DIR/uv" --version)" =~ ^uv\ 0\.9\.22($|\ ) ]]
+        printf '%s\n' "$CI_UV_DIR" >> "$GITHUB_PATH"
     - name: Install the pinned CPU test environment
       run: |
-        uv venv --python python .venv
+        uv venv --python "$RUNNER_TEMP/te3nn-cpython-3.10.20/bin/python3.10" .venv
         uv pip install --python .venv/bin/python 'torch==2.11.0+cpu' --index-url https://download.pytorch.org/whl/cpu
         uv pip install --python .venv/bin/python -r .github/requirements-ci.txt
         uv pip install --python .venv/bin/python --no-index --no-deps --only-binary=:all: \
@@ -98,15 +128,36 @@ jobs:
           examples/atom_types.py examples/tetris.py examples/tetris_gate.py examples/tetris_polynomial.py \
           --doctest-modules --confcutdir=examples --rootdir=examples -c pyproject.toml \
           -q -ra -p no:cacheprovider --junitxml=example-test-results.xml
-    - name: Upload test reports
+    - name: Summarize test reports without external upload actions
       if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: python310-torch211-cpu-results
-        path: |
-          test-results.xml
-          example-test-results.xml
-        if-no-files-found: warn
+      run: |
+        python3 - <<'PY'
+        import os
+        from pathlib import Path
+        import xml.etree.ElementTree as ET
+        lines = [
+            "## T-e3nn CPU test results", "",
+            "| Report | Tests | Failures | Errors | Skipped (including xfail) |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+        for name in ["test-results.xml", "example-test-results.xml"]:
+            path = Path(name)
+            if not path.is_file():
+                lines.append("| " + name + " | Not generated | — | — | — |")
+                continue
+            root = ET.parse(path).getroot()
+            suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+            if not suites:
+                raise ValueError("No test suites in " + name)
+            totals = [sum(int(suite.get(key, "0")) for suite in suites)
+                      for key in ["tests", "failures", "errors", "skipped"]]
+            lines.append("| " + name + " | " + " | ".join(map(str, totals)) + " |")
+        lines.extend(["", "Full pytest output remains in this workflow's logs; no third-party artifact upload is used."])
+        text = "\n".join(lines) + "\n"
+        print(text, end="")
+        with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
+            stream.write(text)
+        PY
     - name: Upload coverage to upstream Coveralls
       env:
         COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
