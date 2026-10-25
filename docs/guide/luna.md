@@ -5,6 +5,13 @@
 optional package is installed. The adapter preserves the original parameter
 and buffer names, so existing checkpoints remain compatible.
 
+`e3nn.o3.LunaTensorProductConv` is the fused opt-in variant for one `uuu` or
+`uvu` connection mode. It combines the tensor-product contraction with
+destination aggregation and accepts a reusable Luna graph. The destination
+indices must be sorted; rebuild the graph whenever connectivity or edge order
+changes. Edge attributes and external `uvu` weights must use the same order as
+the graph indices.
+
 The adapter validates the fork's time-reversal labels before dispatch. Luna's
 native Irreps parser currently represents `(l, parity)` only; do not rebuild a
 SpinGNN `(l, parity, time-reversal)` tensor product from Luna strings. Passing
