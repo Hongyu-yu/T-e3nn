@@ -57,7 +57,13 @@ from ._s2grid import (
 from ._so3grid import SO3Grid
 from ._linear import Linear
 from ._norm import Norm
-from ._luna import LunaTensorProduct, luna_available, validate_luna_tensor_product
+from ._luna import (
+    LunaTensorProduct,
+    LunaTensorProductConv,
+    luna_available,
+    validate_luna_tensor_product,
+    validate_luna_tensor_product_conv,
+)
 
 
 __all__ = [
@@ -120,6 +126,8 @@ __all__ = [
     "Linear",
     "Norm",
     "LunaTensorProduct",
+    "LunaTensorProductConv",
     "luna_available",
     "validate_luna_tensor_product",
+    "validate_luna_tensor_product_conv",
 ]
