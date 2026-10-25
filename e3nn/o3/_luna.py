@@ -58,7 +58,7 @@ def luna_available() -> bool:
     """Return whether the optional LunaEquivariance package is importable."""
     try:
         importlib.import_module("LunaEquivariance")
-    except ModuleNotFoundError:
+    except ImportError:
         return False
     return True
 
